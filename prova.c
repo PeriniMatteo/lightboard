@@ -18,10 +18,12 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <sys/types.h>
 #include "xwiimote.h"
 
 static struct xwii_iface *iface;
 static bool freeze = false;
+static pthread_t main_tid;
 #define IR_POINTER 1
 
 static int enumerate(){
@@ -75,11 +77,8 @@ static void ir_show(const struct xwii_event *event){
 		if (xwii_event_ir_is_valid(&event->v.abs[i])) {
 			printf("IR X: %d\n", event->v.abs[i].x);
 			printf("IR Y: %d\n", event->v.abs[i].y);
-		} else {
-			printf("IR: N/A\n");
 		}
 	}
-
 }
 
 static void ir_clear(void){
@@ -144,31 +143,9 @@ static void accel_toggle(void){
 	}
 }
 
-
-
-void calibration_thread(struct xwii_event *event_p){
-
-	void sig_handler(int signo){
-		if (signo == SIGUSR1) ir_show(event_p);
-	}
-
-	if (signal(SIGUSR1, sig_handler) == SIG_ERR)
-		printf("\ncan't catch SIGINT\n");
-	while(1){ /*mettere a posto qui, non va bene usare sleep*/
-		sleep(1);
-	}
-}
-
-static int run_iface(struct xwii_iface *iface){
-	struct xwii_event event;
+static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	int ret=0, fds_num;
 	struct pollfd fds[2];
-
-	pthread_t tid;
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_create(&tid,&attr,(void*)calibration_thread, &event);
-	sleep(1); // Leave time for initialisation
 
 	memset(fds, 0, sizeof(fds));
 	fds[0].fd = 0;
@@ -189,7 +166,7 @@ static int run_iface(struct xwii_iface *iface){
 			}
 		}
 
-		ret = xwii_iface_dispatch(iface, &event, sizeof(event));
+		ret = xwii_iface_dispatch(iface, event, sizeof(*event));
 		if(ret){
 			if(ret !=-EAGAIN){
 				printf("error");
@@ -197,7 +174,7 @@ static int run_iface(struct xwii_iface *iface){
 			}
 		}
 		else if (!freeze) {
-			switch (event.type) {
+			switch (event->type) {
 				case XWII_EVENT_GONE:
 					printf("Info: Device gone");
 					fds[1].fd = -1;
@@ -205,7 +182,8 @@ static int run_iface(struct xwii_iface *iface){
 					fds_num = 1;
 					break;
 				case XWII_EVENT_IR:
-					pthread_kill(tid,SIGUSR1); //manda un segnale al thread
+					//ir_show(&event);
+					pthread_kill(main_tid,SIGUSR1); //manda un segnale al thread
 					break;
 				default: printf("error");
 			}
@@ -213,17 +191,35 @@ static int run_iface(struct xwii_iface *iface){
 	}
 }
 
-int main(int argc, char **argv){
-  int ret = 0;
-  char *path = NULL;
+void calibration_thread(struct xwii_event *event_p){
+	int ret = run_iface(iface, event_p);
+	/*xwii_iface_unref(iface);
+	if (ret) {
+		print_error("Program failed; press any key to exit");
+		refresh();
+		timeout(-1);
+		getch();
+	}
+	endwin();*/
+}
 
-  if(argc < 2) printf("usage: min 1 parameter \n");
-  else if(!strcmp(argv[1], "list")){
-    printf("Listing devices\n");
-    ret = enumerate();
-    printf("end of device list\n");
-  }
-  else{
+int main(int argc, char **argv){
+	struct xwii_event event;
+
+	void sig_handler(int signo){
+		if (signo == SIGUSR1) ir_show(&event);
+	}
+
+	int ret = 0;
+ 	char *path = NULL;
+
+	if(argc < 2) printf("usage: min 1 parameter \n");
+		else if(!strcmp(argv[1], "list")){
+			printf("Listing devices\n");
+			ret = enumerate();
+			printf("end of device list\n");
+		}
+	else{
 		if (argv[1][0] != '/') path = get_dev(atoi(argv[1]));
 
 		ret = xwii_iface_new(&iface, path ? path : argv[1]);
@@ -235,15 +231,15 @@ int main(int argc, char **argv){
 			if (ret) printf("Error: Cannot open interface: %d, use SUDO!", ret);
 			accel_toggle();
 			mp_toggle();
-			ret = run_iface(iface);
-			/*xwii_iface_unref(iface);
-			if (ret) {
-				print_error("Program failed; press any key to exit");
-				refresh();
-				timeout(-1);
-				getch();
-			}
-			endwin();*/
+
+			pthread_t tid;
+			pthread_attr_t attr;
+			pthread_attr_init(&attr);
+			main_tid = pthread_self();
+			pthread_create(&tid,&attr,(void*)calibration_thread, &event);
+			if (signal(SIGUSR1, sig_handler) == SIG_ERR)
+				printf("\ncan't catch SIGINT\n");
+			while(true) sleep(1);
 		}
   }
 }
