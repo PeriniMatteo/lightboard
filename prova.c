@@ -13,14 +13,18 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <gtk/gtk.h>
+#include <X11/Xlib.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <signal.h>
 #include "xwiimote.h"
 
 static struct xwii_iface *iface;
 static bool freeze = false;
 #define IR_POINTER 1
 
-static int enumerate()
-{
+static int enumerate(){
 	struct xwii_monitor *mon;
 	char *ent;
 	int num = 0;
@@ -40,8 +44,7 @@ static int enumerate()
 	return 0;
 }
 
-static char *get_dev(int num)
-{
+static char *get_dev(int num){
 	struct xwii_monitor *mon;
 	char *ent;
 	int i = 0;
@@ -79,8 +82,7 @@ static void ir_show(const struct xwii_event *event){
 
 }
 
-static void ir_clear(void)
-{
+static void ir_clear(void){
 	struct xwii_event ev;
 
 	ev.v.abs[0].x = 1023;
@@ -94,8 +96,7 @@ static void ir_clear(void)
 	ir_show(&ev);
 }
 
-static void mp_clear(void)
-{
+static void mp_clear(void){
 	struct xwii_event ev;
 
 	ev.v.abs[0].x = 0;
@@ -103,8 +104,7 @@ static void mp_clear(void)
 	ev.v.abs[0].z = 0;
 }
 
-static void mp_toggle(void)
-{
+static void mp_toggle(void){
 	int ret;
 
 	if (xwii_iface_opened(iface) & XWII_IFACE_MOTION_PLUS) {
@@ -120,8 +120,7 @@ static void mp_toggle(void)
 	}
 }
 
-static void accel_clear(void)
-{
+static void accel_clear(void){
 	struct xwii_event ev;
 
 	ev.v.abs[0].x = 0;
@@ -129,8 +128,7 @@ static void accel_clear(void)
 	ev.v.abs[0].z = 0;
 }
 
-static void accel_toggle(void)
-{
+static void accel_toggle(void){
 	int ret;
 
 	if (xwii_iface_opened(iface) & XWII_IFACE_ACCEL) {
@@ -146,10 +144,31 @@ static void accel_toggle(void)
 	}
 }
 
+
+
+void calibration_thread(struct xwii_event *event_p){
+
+	void sig_handler(int signo){
+		if (signo == SIGUSR1) ir_show(event_p);
+	}
+
+	if (signal(SIGUSR1, sig_handler) == SIG_ERR)
+		printf("\ncan't catch SIGINT\n");
+	while(1){ /*mettere a posto qui, non va bene usare sleep*/
+		sleep(1);
+	}
+}
+
 static int run_iface(struct xwii_iface *iface){
 	struct xwii_event event;
 	int ret=0, fds_num;
 	struct pollfd fds[2];
+
+	pthread_t tid;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_create(&tid,&attr,(void*)calibration_thread, &event);
+	sleep(1); // Leave time for initialisation
 
 	memset(fds, 0, sizeof(fds));
 	fds[0].fd = 0;
@@ -158,6 +177,7 @@ static int run_iface(struct xwii_iface *iface){
 	fds[1].events = POLLIN;
 	fds_num = 2;
 	ret = xwii_iface_watch(iface, true);
+
 	if(ret) printf("errore");
 	while(true){
 		ret = poll(fds, fds_num, -1);
@@ -178,27 +198,16 @@ static int run_iface(struct xwii_iface *iface){
 		}
 		else if (!freeze) {
 			switch (event.type) {
-			case XWII_EVENT_GONE:
-				printf("Info: Device gone");
-				fds[1].fd = -1;
-				fds[1].events = 0;
-				fds_num = 1;
-				break;
-			case XWII_EVENT_WATCH:
-				printf("watch");
-				//handle_watch();
-			case XWII_EVENT_KEY:
-					printf("key");
-				break;
-			case XWII_EVENT_ACCEL:
-					printf("accel");
-				break;
-			case XWII_EVENT_IR:
-					ir_show(&event);
-				break;
-			case XWII_EVENT_MOTION_PLUS:
-					printf("mp");
-				break;
+				case XWII_EVENT_GONE:
+					printf("Info: Device gone");
+					fds[1].fd = -1;
+					fds[1].events = 0;
+					fds_num = 1;
+					break;
+				case XWII_EVENT_IR:
+					pthread_kill(tid,SIGUSR1); //manda un segnale al thread
+					break;
+				default: printf("error");
 			}
 		}
 	}
@@ -215,17 +224,14 @@ int main(int argc, char **argv){
     printf("end of device list\n");
   }
   else{
-		if (argv[1][0] != '/')
-			path = get_dev(atoi(argv[1]));
+		if (argv[1][0] != '/') path = get_dev(atoi(argv[1]));
 
 		ret = xwii_iface_new(&iface, path ? path : argv[1]);
 		free(path);
 		if (ret) printf("Cannot create xwii_iface '%s' err:%d\n", argv[1], ret);
 		else {
 			ir_clear();
-			ret = xwii_iface_open(iface,
-					      xwii_iface_available(iface) |
-					      XWII_IFACE_WRITABLE);
+			ret = xwii_iface_open(iface, xwii_iface_available(iface) | XWII_IFACE_WRITABLE);
 			if (ret) printf("Error: Cannot open interface: %d, use SUDO!", ret);
 			accel_toggle();
 			mp_toggle();

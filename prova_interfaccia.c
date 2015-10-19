@@ -7,17 +7,9 @@
 #include <unistd.h>
 #include <time.h>
 
-#define LABEL_SIZE 20
-#define SUM TRUE
-#define SUBTRACT FALSE
-#define DEFAULT_DISTANCE_FROM_BORDER 30
 
-GObject *layout, *window;
-GtkBuilder *builder;
-GtkWidget *label1, *label2, *label3, *label4;
-Display *dpy;
-Screen *s;
-int point;
+
+
 
 void point_f(){
     wait(3);
