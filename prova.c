@@ -1,3 +1,7 @@
+/*
+** TODO: dividere in più file
+** gcc `pkg-config --cflags gtk+-3.0` -o prova prova.c monitor.c core.c -ludev -lX11 -lpthread `pkg-config --libs gtk+-3.0`
+*/
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -34,10 +38,10 @@ static pthread_t main_tid;
 
 GObject *layout, *window;
 GtkBuilder *builder;
-GtkWidget *label1, *label2, *label3, *label4;
+GtkWidget *label1, *label2, *label3, *label4, *spinner;
 Display *dpy;
 Screen *s;
-int point;
+int point, change;
 
 static int enumerate(){
 	struct xwii_monitor *mon;
@@ -91,6 +95,7 @@ static void ir_show(const struct xwii_event *event){
 			printf("IR X: %d\n", event->v.abs[i].x);
 			printf("IR Y: %d\n", event->v.abs[i].y);
 		}
+		else printf("NO IR");
 	}
 }
 
@@ -108,54 +113,6 @@ static void ir_clear(void){
 	ir_show(&ev);
 }
 
-static void mp_clear(void){
-	struct xwii_event ev;
-
-	ev.v.abs[0].x = 0;
-	ev.v.abs[0].y = 0;
-	ev.v.abs[0].z = 0;
-}
-
-static void mp_toggle(void){
-	int ret;
-
-	if (xwii_iface_opened(iface) & XWII_IFACE_MOTION_PLUS) {
-		xwii_iface_close(iface, XWII_IFACE_MOTION_PLUS);
-		mp_clear();
-	} else {
-		ret = xwii_iface_open(iface, XWII_IFACE_MOTION_PLUS);
-		if (ret)
-			printf("Error: Cannot enable MP: %d",
-				    ret);
-		else
-			printf("Info: Enable Motion Plus");
-	}
-}
-
-static void accel_clear(void){
-	struct xwii_event ev;
-
-	ev.v.abs[0].x = 0;
-	ev.v.abs[0].y = 0;
-	ev.v.abs[0].z = 0;
-}
-
-static void accel_toggle(void){
-	int ret;
-
-	if (xwii_iface_opened(iface) & XWII_IFACE_ACCEL) {
-		xwii_iface_close(iface, XWII_IFACE_ACCEL);
-		accel_clear();
-	} else {
-		ret = xwii_iface_open(iface, XWII_IFACE_ACCEL);
-		if (ret)
-			printf("Error: Cannot enable accelerometer: %d",
-				    ret);
-		else
-			printf("Info: Enable accelerometer");
-	}
-}
-
 static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	int ret=0, fds_num;
 	struct pollfd fds[2];
@@ -167,8 +124,8 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	fds[1].events = POLLIN;
 	fds_num = 2;
 	ret = xwii_iface_watch(iface, true);
-
 	if(ret) printf("errore");
+
 	while(true){
 		ret = poll(fds, fds_num, -1);
 		if(ret<0){
@@ -195,7 +152,6 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 					fds_num = 1;
 					break;
 				case XWII_EVENT_IR:
-					//ir_show(&event);
 					pthread_kill(main_tid,SIGUSR1); //manda un segnale al thread
 					break;
 				default: printf("error");
@@ -218,7 +174,6 @@ void calibration_thread(struct xwii_event *event_p){
 /*INTERFACCIA*/
 /*fare un controllo sul massimo incremento possibile*/
 void change_distance_from_border(gboolean action){
-    static int change = 1;
     if(action==SUM){
         change++;
     }
@@ -234,6 +189,36 @@ void change_distance_from_border(gboolean action){
     gtk_layout_move((GtkLayout *)layout,label4, new_distance, new_bottom_distance);
 }
 
+static gboolean reset(){
+    point = 0;
+	change = 1;
+    //g_print("%d",point);
+
+	//gtk_container_foreach((GtkContainer *)layout,(GtkCallback)gtk_widget_destroy, NULL);
+	gtk_widget_destroy((GtkWidget *) layout);
+	layout = (GObject *) gtk_layout_new(NULL, NULL);
+	gtk_container_add (GTK_CONTAINER (window), (GtkWidget *) layout);
+	int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE; //mettere tutti questi valori in variabili
+	//queste variabili si potranno poi modificare tramite tastiera
+	int bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
+	label1 = gtk_label_new("1");
+	gtk_widget_set_size_request(label1,LABEL_SIZE,LABEL_SIZE);
+	gtk_layout_put((GtkLayout *)layout,label1,DEFAULT_DISTANCE_FROM_BORDER, DEFAULT_DISTANCE_FROM_BORDER);
+	label2 = gtk_label_new("2");
+	gtk_widget_set_size_request(label2,LABEL_SIZE,LABEL_SIZE);
+	gtk_layout_put((GtkLayout *)layout,label2,right_distance,DEFAULT_DISTANCE_FROM_BORDER);
+	label3 = gtk_label_new("3");
+	gtk_widget_set_size_request(label3,LABEL_SIZE,LABEL_SIZE);
+	gtk_layout_put((GtkLayout *)layout,label3,right_distance,bottom_distance);
+	label4 = gtk_label_new("4");
+	gtk_widget_set_size_request(label4,LABEL_SIZE,LABEL_SIZE);
+	gtk_layout_put((GtkLayout *)layout,label4,DEFAULT_DISTANCE_FROM_BORDER,bottom_distance);
+
+	gtk_widget_show_all((GtkWidget *) window);
+
+    return FALSE;
+}
+
 /*controlla se è stato premuto ESC, funzione di callback del segnale associato*/
 static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
     if(event->keyval==GDK_KEY_Escape){
@@ -244,20 +229,55 @@ static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
 		change_distance_from_border(SUBTRACT);
     if(event->keyval==GDK_KEY_plus)
 		change_distance_from_border(SUM);
+	if(event->keyval==GDK_KEY_a)
+		reset();
     return FALSE;
 }
 
-static gboolean reset(){
-    point = 0;
-    g_print("%d",point);
-    return FALSE;
+void point_f(){
+	GValue x = G_VALUE_INIT;
+	g_value_init (&x, G_TYPE_INT);
+	GValue y = G_VALUE_INIT;
+	g_value_init (&y, G_TYPE_INT);
+	point++;
+	switch(point){
+		case 1:
+			spinner = gtk_spinner_new ();
+			printf("n");
+			gtk_spinner_start (GTK_SPINNER (spinner));
+			gtk_container_child_get_property((GtkContainer *)layout,label1,"x", &x);
+			gtk_container_child_get_property((GtkContainer *)layout,label1,"y", &y);
+			gtk_widget_set_size_request(spinner,40,40);
+			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
+			gtk_widget_destroy(GTK_WIDGET(label1));
+			gtk_widget_show(spinner);
+			break;
+		case 100:
+			g_print("primo!");
+			gtk_widget_destroy(GTK_WIDGET(spinner));
+			break;
+		case 200:
+			g_print("secondo!");
+			gtk_widget_destroy(GTK_WIDGET(label2));
+			break;
+		case 300:
+			g_print("terzo!");
+			gtk_widget_destroy(GTK_WIDGET(label3));
+			break;
+		case 400:
+			g_print("quarto!");
+			gtk_widget_destroy(GTK_WIDGET(label4));
+	}
 }
 
 int main(int argc, char **argv){
 	struct xwii_event event;
 
 	void sig_handler(int signo){
-		if (signo == SIGUSR1) ir_show(&event);
+		if (signo == SIGUSR1){
+			point_f();
+			//ir_show(&event);
+		}
 	}
 
 	int ret = 0;
@@ -279,52 +299,37 @@ int main(int argc, char **argv){
 			ir_clear();
 			ret = xwii_iface_open(iface, xwii_iface_available(iface) | XWII_IFACE_WRITABLE);
 			if (ret) printf("Error: Cannot open interface: %d, use SUDO!", ret);
-			accel_toggle();
-			mp_toggle();
+			/*rimuove i messaggi dell'accelerometro e del motion plus*/
+			if (xwii_iface_opened(iface) & XWII_IFACE_ACCEL)
+				xwii_iface_close(iface, XWII_IFACE_ACCEL);
+			if (xwii_iface_opened(iface) & XWII_IFACE_MOTION_PLUS)
+				xwii_iface_close(iface, XWII_IFACE_MOTION_PLUS);
 
 			pthread_t tid;
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			main_tid = pthread_self();
 			pthread_create(&tid,&attr,(void*)calibration_thread, &event);
-			if (signal(SIGUSR1, sig_handler) == SIG_ERR)
-				printf("\ncan't catch SIGINT\n");
+			if (signal(SIGUSR1, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
 
 			gtk_init (&argc, &argv);
 			/* Construct a GtkBuilder instance and load our UI description */
 		    builder = gtk_builder_new ();
 		    gtk_builder_add_from_file (builder, "spinners.ui", NULL);
 
-			/*segnali*/
+			/*segnali - eliminare builder*/
 		    window = gtk_builder_get_object(builder,"window1");
 		    layout = gtk_builder_get_object(builder, "layout1");
 		    g_signal_connect (window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
 		    /*si esce se viene premuto ESC e altre cose*/
 		    g_signal_connect(window, "key-press-event", G_CALLBACK(key_event), NULL);
-		    //g_signal_connect(window, "key-release-event", G_CALLBACK(reset), NULL);
 
 			//printf("%d %d", s->height, s->width);
 		    dpy = XOpenDisplay(NULL);
 		    s = DefaultScreenOfDisplay(dpy);
 		    /*creazione label compattare il codice*/
-		    int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE; //mettere tutti questi valori in variabili
-		    //queste variabili si potranno poi modificare tramite tastiera
-		    int bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
-		    label1 = gtk_label_new("1");
-		    gtk_widget_set_size_request(label1,LABEL_SIZE,LABEL_SIZE);
-		    gtk_layout_put((GtkLayout *)layout,label1,DEFAULT_DISTANCE_FROM_BORDER, DEFAULT_DISTANCE_FROM_BORDER);
-		    label2 = gtk_label_new("2");
-		    gtk_widget_set_size_request(label2,LABEL_SIZE,LABEL_SIZE);
-		    gtk_layout_put((GtkLayout *)layout,label2,right_distance,DEFAULT_DISTANCE_FROM_BORDER);
-		    label3 = gtk_label_new("3");
-		    gtk_widget_set_size_request(label3,LABEL_SIZE,LABEL_SIZE);
-		    gtk_layout_put((GtkLayout *)layout,label3,right_distance,bottom_distance);
-		    label4 = gtk_label_new("4");
-		    gtk_widget_set_size_request(label4,LABEL_SIZE,LABEL_SIZE);
-		    gtk_layout_put((GtkLayout *)layout,label4,DEFAULT_DISTANCE_FROM_BORDER,bottom_distance);
 
-		    gtk_widget_show_all((GtkWidget *) window);
-
+			reset();
 		    gtk_window_fullscreen( (GtkWindow *) window);
 		    gtk_main ();
 
