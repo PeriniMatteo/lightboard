@@ -41,7 +41,7 @@ GtkWidget *label1, *label2, *label3, *label4, *spinner;
 Display *dpy;
 Screen *s;
 int point, change;
-gboolean reset_point, freeze;
+gboolean reset_point, freeze, stop_ir;
 
 static int enumerate(){
 	struct xwii_monitor *mon;
@@ -194,9 +194,7 @@ void change_distance_from_border(gboolean action){
 static gboolean reset(){
     point = 0;
 	change = 1;
-    //g_print("%d",point);
 
-	//gtk_container_foreach((GtkContainer *)layout,(GtkCallback)gtk_widget_destroy, NULL);
 	gtk_widget_destroy((GtkWidget *) layout);
 	layout = (GObject *) gtk_layout_new(NULL, NULL);
 	gtk_container_add (GTK_CONTAINER (window), (GtkWidget *) layout);
@@ -239,7 +237,8 @@ static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
 gboolean post_sleep_calibration(){
 	if(!reset_point) gtk_widget_destroy((GtkWidget *) spinner);
 	else reset();
-	freeze = FALSE;
+	stop_ir = FALSE;
+	//freeze = FALSE;
 	return FALSE;
 }
 
@@ -250,6 +249,7 @@ void point_f(){
 	g_value_init (&y, G_TYPE_INT);
 	point++;
 	freeze = TRUE;
+	stop_ir = TRUE;
 	reset_point=FALSE; //se dopo il timeout questo reset_point diventa TRUE, viene resettato tutto il processo di calibrazione
 	switch(point){
 		case 1:
@@ -274,17 +274,28 @@ void point_f(){
 			gtk_widget_show(spinner);
 			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
 			break;
-		/*case 200:
-			g_print("secondo!");
-			gtk_widget_destroy(GTK_WIDGET(label2));
-			break;
-		case 300:
-			g_print("terzo!");
+		case 3:
+			spinner = gtk_spinner_new ();
+			gtk_spinner_start (GTK_SPINNER (spinner));
+			gtk_container_child_get_property((GtkContainer *)layout,label3,"x", &x);
+			gtk_container_child_get_property((GtkContainer *)layout,label3,"y", &y);
+			gtk_widget_set_size_request(spinner,40,40);
+			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
 			gtk_widget_destroy(GTK_WIDGET(label3));
+			gtk_widget_show(spinner);
+			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
 			break;
-		case 400:
-			g_print("quarto!");
-			gtk_widget_destroy(GTK_WIDGET(label4));*/
+		case 4:
+			spinner = gtk_spinner_new ();
+			gtk_spinner_start (GTK_SPINNER (spinner));
+			gtk_container_child_get_property((GtkContainer *)layout,label4,"x", &x);
+			gtk_container_child_get_property((GtkContainer *)layout,label4,"y", &y);
+			gtk_widget_set_size_request(spinner,40,40);
+			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
+			gtk_widget_destroy(GTK_WIDGET(label4));
+			gtk_widget_show(spinner);
+			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
+			break;
 	}
 }
 
@@ -298,9 +309,8 @@ int main(int argc, char **argv){
 			//ir_show(&event);
 		}
 		else if(signo==SIGUSR2){ //no IR
-			reset_point = TRUE;
-			/*printf("YUPPIE");
-			fflush(stdout);*/
+			if(stop_ir) reset_point = TRUE;
+			else freeze=FALSE;
 		}
 	}
 
@@ -354,6 +364,7 @@ int main(int argc, char **argv){
 
 			reset();
 		    gtk_window_fullscreen( (GtkWindow *) window);
+
 		    gtk_main ();
 
 			while(true) sleep(1);
