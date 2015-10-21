@@ -26,7 +26,6 @@
 #include "xwiimote.h"
 
 static struct xwii_iface *iface;
-static bool freeze = false;
 static pthread_t main_tid;
 #define IR_POINTER 1
 
@@ -42,6 +41,7 @@ GtkWidget *label1, *label2, *label3, *label4, *spinner;
 Display *dpy;
 Screen *s;
 int point, change;
+gboolean reset_point, freeze;
 
 static int enumerate(){
 	struct xwii_monitor *mon;
@@ -95,7 +95,6 @@ static void ir_show(const struct xwii_event *event){
 			printf("IR X: %d\n", event->v.abs[i].x);
 			printf("IR Y: %d\n", event->v.abs[i].y);
 		}
-		else printf("NO IR");
 	}
 }
 
@@ -116,6 +115,7 @@ static void ir_clear(void){
 static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	int ret=0, fds_num;
 	struct pollfd fds[2];
+	int default_wait_time = 400;
 
 	memset(fds, 0, sizeof(fds));
 	fds[0].fd = 0;
@@ -127,7 +127,7 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	if(ret) printf("errore");
 
 	while(true){
-		ret = poll(fds, fds_num, -1);
+		ret = poll(fds, fds_num, default_wait_time);
 		if(ret<0){
 			if(errno != EINTR){
 				ret = -errno;
@@ -135,15 +135,17 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 				break;
 			}
 		}
+		else if(!ret) pthread_kill(main_tid, SIGUSR2); //non viene rilevato nessun cambiamento nei dati IR
 
 		ret = xwii_iface_dispatch(iface, event, sizeof(*event));
+
 		if(ret){
 			if(ret !=-EAGAIN){
 				printf("error");
 				break;
 			}
 		}
-		else if (!freeze) {
+		else{
 			switch (event->type) {
 				case XWII_EVENT_GONE:
 					printf("Info: Device gone");
@@ -234,16 +236,24 @@ static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
     return FALSE;
 }
 
+gboolean post_sleep_calibration(){
+	if(!reset_point) gtk_widget_destroy((GtkWidget *) spinner);
+	else reset();
+	freeze = FALSE;
+	return FALSE;
+}
+
 void point_f(){
 	GValue x = G_VALUE_INIT;
 	g_value_init (&x, G_TYPE_INT);
 	GValue y = G_VALUE_INIT;
 	g_value_init (&y, G_TYPE_INT);
 	point++;
+	freeze = TRUE;
+	reset_point=FALSE; //se dopo il timeout questo reset_point diventa TRUE, viene resettato tutto il processo di calibrazione
 	switch(point){
 		case 1:
 			spinner = gtk_spinner_new ();
-			printf("n");
 			gtk_spinner_start (GTK_SPINNER (spinner));
 			gtk_container_child_get_property((GtkContainer *)layout,label1,"x", &x);
 			gtk_container_child_get_property((GtkContainer *)layout,label1,"y", &y);
@@ -251,12 +261,20 @@ void point_f(){
 			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
 			gtk_widget_destroy(GTK_WIDGET(label1));
 			gtk_widget_show(spinner);
+			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
 			break;
-		case 100:
-			g_print("primo!");
-			gtk_widget_destroy(GTK_WIDGET(spinner));
+		case 2:
+			spinner = gtk_spinner_new ();
+			gtk_spinner_start (GTK_SPINNER (spinner));
+			gtk_container_child_get_property((GtkContainer *)layout,label2,"x", &x);
+			gtk_container_child_get_property((GtkContainer *)layout,label2,"y", &y);
+			gtk_widget_set_size_request(spinner,40,40);
+			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
+			gtk_widget_destroy(GTK_WIDGET(label2));
+			gtk_widget_show(spinner);
+			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
 			break;
-		case 200:
+		/*case 200:
 			g_print("secondo!");
 			gtk_widget_destroy(GTK_WIDGET(label2));
 			break;
@@ -266,17 +284,23 @@ void point_f(){
 			break;
 		case 400:
 			g_print("quarto!");
-			gtk_widget_destroy(GTK_WIDGET(label4));
+			gtk_widget_destroy(GTK_WIDGET(label4));*/
 	}
 }
 
 int main(int argc, char **argv){
 	struct xwii_event event;
+	reset_point=FALSE;
 
 	void sig_handler(int signo){
-		if (signo == SIGUSR1){
-			point_f();
+		if (signo == SIGUSR1){ //IR
+			if(!freeze) point_f();
 			//ir_show(&event);
+		}
+		else if(signo==SIGUSR2){ //no IR
+			reset_point = TRUE;
+			/*printf("YUPPIE");
+			fflush(stdout);*/
 		}
 	}
 
@@ -300,17 +324,16 @@ int main(int argc, char **argv){
 			ret = xwii_iface_open(iface, xwii_iface_available(iface) | XWII_IFACE_WRITABLE);
 			if (ret) printf("Error: Cannot open interface: %d, use SUDO!", ret);
 			/*rimuove i messaggi dell'accelerometro e del motion plus*/
-			if (xwii_iface_opened(iface) & XWII_IFACE_ACCEL)
-				xwii_iface_close(iface, XWII_IFACE_ACCEL);
-			if (xwii_iface_opened(iface) & XWII_IFACE_MOTION_PLUS)
-				xwii_iface_close(iface, XWII_IFACE_MOTION_PLUS);
+			if (xwii_iface_opened(iface) & XWII_IFACE_ACCEL) xwii_iface_close(iface, XWII_IFACE_ACCEL);
+			if (xwii_iface_opened(iface) & XWII_IFACE_MOTION_PLUS) xwii_iface_close(iface, XWII_IFACE_MOTION_PLUS);
 
 			pthread_t tid;
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			main_tid = pthread_self();
 			pthread_create(&tid,&attr,(void*)calibration_thread, &event);
-			if (signal(SIGUSR1, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
+			if (signal(SIGUSR1, sig_handler) == SIG_ERR) printf("\ncan't catch SIGUSR1\n");
+			if (signal(SIGUSR2, sig_handler) == SIG_ERR) printf("\ncan't catch SIGUSR2\n");
 
 			gtk_init (&argc, &argv);
 			/* Construct a GtkBuilder instance and load our UI description */
