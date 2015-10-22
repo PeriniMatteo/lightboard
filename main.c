@@ -1,6 +1,6 @@
 /*
 ** TODO: dividere in più file
-** gcc `pkg-config --cflags gtk+-3.0` -o prova prova.c monitor.c core.c -ludev -lX11 -lpthread `pkg-config --libs gtk+-3.0`
+** gcc `pkg-config --cflags gtk+-3.0` -o lightboard main.c monitor.c core.c -ludev -lX11 -lpthread `pkg-config --libs gtk+-3.0`
 */
 #include <errno.h>
 #include <fcntl.h>
@@ -37,11 +37,23 @@ static pthread_t main_tid;
 
 GObject *layout, *window;
 GtkBuilder *builder;
-GtkWidget *label1, *label2, *label3, *label4, *spinner;
+GtkWidget *spinner;
 Display *dpy;
 Screen *s;
 int point, change;
 gboolean reset_point, freeze, stop_ir;
+
+typedef struct point_s {
+	GtkWidget *label;
+	int default_x;
+	int default_y;
+	int runtime_x;
+	int runtime_y;
+	int ir_x;
+	int ir_y;
+} point_s;
+
+point_s point_array[4];
 
 static int enumerate(){
 	struct xwii_monitor *mon;
@@ -174,9 +186,10 @@ void calibration_thread(struct xwii_event *event_p){
 	endwin();*/
 }
 /*INTERFACCIA*/
-/*fare un controllo sul massimo incremento possibile*/
+/* TODO fare un controllo sul massimo incremento possibile*/
 void change_distance_from_border(gboolean action){
-    if(action==SUM){
+    int i;
+	if(action==SUM){
         change++;
     }
     else if(action==SUBTRACT){
@@ -185,10 +198,10 @@ void change_distance_from_border(gboolean action){
     int new_distance = DEFAULT_DISTANCE_FROM_BORDER*change;
     int new_right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER*change - LABEL_SIZE;
     int new_bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER*change - LABEL_SIZE;
-    gtk_layout_move((GtkLayout *)layout,label1, new_distance, new_distance);
-    gtk_layout_move((GtkLayout *)layout,label2, new_right_distance, new_distance);
-    gtk_layout_move((GtkLayout *)layout,label3, new_right_distance, new_bottom_distance);
-    gtk_layout_move((GtkLayout *)layout,label4, new_distance, new_bottom_distance);
+	point_array[0].runtime_x = point_array[0].runtime_y = point_array[1].runtime_y = point_array[3].runtime_x = new_distance;
+	point_array[1].runtime_x = point_array[2].runtime_x = new_right_distance;
+	point_array[2].runtime_y = point_array[3].runtime_y = new_bottom_distance;
+	for(i=0;i<4;i++) gtk_layout_move((GtkLayout *)layout,point_array[i].label, point_array[i].runtime_x, point_array[i].runtime_y);
 }
 
 static gboolean reset(){
@@ -198,28 +211,21 @@ static gboolean reset(){
 	gtk_widget_destroy((GtkWidget *) layout);
 	layout = (GObject *) gtk_layout_new(NULL, NULL);
 	gtk_container_add (GTK_CONTAINER (window), (GtkWidget *) layout);
-	int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE; //mettere tutti questi valori in variabili
-	//queste variabili si potranno poi modificare tramite tastiera
-	int bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
-	label1 = gtk_label_new("1");
-	gtk_widget_set_size_request(label1,LABEL_SIZE,LABEL_SIZE);
-	gtk_layout_put((GtkLayout *)layout,label1,DEFAULT_DISTANCE_FROM_BORDER, DEFAULT_DISTANCE_FROM_BORDER);
-	label2 = gtk_label_new("2");
-	gtk_widget_set_size_request(label2,LABEL_SIZE,LABEL_SIZE);
-	gtk_layout_put((GtkLayout *)layout,label2,right_distance,DEFAULT_DISTANCE_FROM_BORDER);
-	label3 = gtk_label_new("3");
-	gtk_widget_set_size_request(label3,LABEL_SIZE,LABEL_SIZE);
-	gtk_layout_put((GtkLayout *)layout,label3,right_distance,bottom_distance);
-	label4 = gtk_label_new("4");
-	gtk_widget_set_size_request(label4,LABEL_SIZE,LABEL_SIZE);
-	gtk_layout_put((GtkLayout *)layout,label4,DEFAULT_DISTANCE_FROM_BORDER,bottom_distance);
+
+	int i;
+	char str[2];
+	for(i=0;i<4;i++){
+		sprintf(str, "%d", i+1);
+		point_array[i].label = gtk_label_new(str);
+		gtk_widget_set_size_request(point_array[i].label,LABEL_SIZE,LABEL_SIZE);
+		gtk_layout_put((GtkLayout *)layout,point_array[i].label,point_array[i].default_x, point_array[i].default_y);
+	}
 
 	gtk_widget_show_all((GtkWidget *) window);
-
     return FALSE;
 }
 
-/*controlla se è stato premuto ESC, funzione di callback del segnale associato*/
+/* TODO controlla se è stato premuto ESC, funzione di callback del segnale associato*/
 static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
     if(event->keyval==GDK_KEY_Escape){
 		gtk_widget_destroy(widget);
@@ -238,64 +244,35 @@ gboolean post_sleep_calibration(){
 	if(!reset_point) gtk_widget_destroy((GtkWidget *) spinner);
 	else reset();
 	stop_ir = FALSE;
-	//freeze = FALSE;
+
+	if(point==4){ // TODO eliminare
+		printf("%d %d\n",point_array[0].ir_x,point_array[0].ir_y );
+		printf("%d %d\n",point_array[1].ir_x,point_array[1].ir_y );
+		printf("%d %d\n",point_array[2].ir_x,point_array[2].ir_y );
+		printf("%d %d\n",point_array[3].ir_x,point_array[3].ir_y );
+		fflush(stdout);
+		gtk_widget_destroy((GtkWidget *)window);
+	}
+
 	return FALSE;
 }
 
-void point_f(){
-	GValue x = G_VALUE_INIT;
-	g_value_init (&x, G_TYPE_INT);
-	GValue y = G_VALUE_INIT;
-	g_value_init (&y, G_TYPE_INT);
-	point++;
+void point_f(struct xwii_event *event){
 	freeze = TRUE;
 	stop_ir = TRUE;
 	reset_point=FALSE; //se dopo il timeout questo reset_point diventa TRUE, viene resettato tutto il processo di calibrazione
-	switch(point){
-		case 1:
-			spinner = gtk_spinner_new ();
-			gtk_spinner_start (GTK_SPINNER (spinner));
-			gtk_container_child_get_property((GtkContainer *)layout,label1,"x", &x);
-			gtk_container_child_get_property((GtkContainer *)layout,label1,"y", &y);
-			gtk_widget_set_size_request(spinner,40,40);
-			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
-			gtk_widget_destroy(GTK_WIDGET(label1));
-			gtk_widget_show(spinner);
-			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
-			break;
-		case 2:
-			spinner = gtk_spinner_new ();
-			gtk_spinner_start (GTK_SPINNER (spinner));
-			gtk_container_child_get_property((GtkContainer *)layout,label2,"x", &x);
-			gtk_container_child_get_property((GtkContainer *)layout,label2,"y", &y);
-			gtk_widget_set_size_request(spinner,40,40);
-			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
-			gtk_widget_destroy(GTK_WIDGET(label2));
-			gtk_widget_show(spinner);
-			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
-			break;
-		case 3:
-			spinner = gtk_spinner_new ();
-			gtk_spinner_start (GTK_SPINNER (spinner));
-			gtk_container_child_get_property((GtkContainer *)layout,label3,"x", &x);
-			gtk_container_child_get_property((GtkContainer *)layout,label3,"y", &y);
-			gtk_widget_set_size_request(spinner,40,40);
-			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
-			gtk_widget_destroy(GTK_WIDGET(label3));
-			gtk_widget_show(spinner);
-			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
-			break;
-		case 4:
-			spinner = gtk_spinner_new ();
-			gtk_spinner_start (GTK_SPINNER (spinner));
-			gtk_container_child_get_property((GtkContainer *)layout,label4,"x", &x);
-			gtk_container_child_get_property((GtkContainer *)layout,label4,"y", &y);
-			gtk_widget_set_size_request(spinner,40,40);
-			gtk_layout_put((GtkLayout *)layout,spinner,(gint) g_value_get_int(&x)-10,(gint) g_value_get_int(&y)-10); /*aggiustamento per centrare il numero nello spinner*/
-			gtk_widget_destroy(GTK_WIDGET(label4));
-			gtk_widget_show(spinner);
-			g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
-			break;
+	if(point<4){
+		spinner = gtk_spinner_new();
+		gtk_spinner_start (GTK_SPINNER (spinner));
+		gtk_widget_set_size_request(spinner,40,40); //mettere in variabili
+		gtk_layout_put((GtkLayout *)layout,spinner,(gint) point_array[point].runtime_x-10,point_array[point].runtime_y-10); /*aggiustamento per centrare il numero nello spinner*/
+		gtk_widget_destroy(GTK_WIDGET(point_array[point].label));
+		gtk_widget_show(spinner);
+
+		point_array[point].ir_x = event->v.abs[0].x;
+		point_array[point].ir_y = event->v.abs[0].y;
+		point++;
+		g_timeout_add(1000, (GSourceFunc)post_sleep_calibration, NULL);
 	}
 }
 
@@ -305,7 +282,7 @@ int main(int argc, char **argv){
 
 	void sig_handler(int signo){
 		if (signo == SIGUSR1){ //IR
-			if(!freeze) point_f();
+			if(!freeze && xwii_event_ir_is_valid(&event.v.abs[0])) point_f(&event);
 			//ir_show(&event);
 		}
 		else if(signo==SIGUSR2){ //no IR
@@ -357,10 +334,13 @@ int main(int argc, char **argv){
 		    /*si esce se viene premuto ESC e altre cose*/
 		    g_signal_connect(window, "key-press-event", G_CALLBACK(key_event), NULL);
 
-			//printf("%d %d", s->height, s->width);
 		    dpy = XOpenDisplay(NULL);
 		    s = DefaultScreenOfDisplay(dpy);
-		    /*creazione label compattare il codice*/
+			int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
+			int bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
+			point_array[0].default_x = point_array[0].default_y = point_array[1].default_y = point_array[3].default_x = DEFAULT_DISTANCE_FROM_BORDER;
+			point_array[1].default_x = point_array[2].default_x = right_distance;
+			point_array[2].default_y = point_array[3].default_y = bottom_distance;
 
 			reset();
 		    gtk_window_fullscreen( (GtkWindow *) window);
