@@ -41,7 +41,7 @@ GtkWidget *spinner;
 Display *dpy;
 Screen *s;
 int point, change;
-gboolean reset_point, freeze, stop_ir;
+gboolean reset_point, freeze, stop_ir, calibrated;
 
 typedef struct point_s {
 	GtkWidget *label;
@@ -219,6 +219,8 @@ static gboolean reset(){
 		point_array[i].label = gtk_label_new(str);
 		gtk_widget_set_size_request(point_array[i].label,LABEL_SIZE,LABEL_SIZE);
 		gtk_layout_put((GtkLayout *)layout,point_array[i].label,point_array[i].default_x, point_array[i].default_y);
+		point_array[i].runtime_x = point_array[i].default_x;
+		point_array[i].runtime_y = point_array[i].default_y;
 	}
 
 	gtk_widget_show_all((GtkWidget *) window);
@@ -251,6 +253,7 @@ gboolean post_sleep_calibration(){
 		printf("%d %d\n",point_array[2].ir_x,point_array[2].ir_y );
 		printf("%d %d\n",point_array[3].ir_x,point_array[3].ir_y );
 		fflush(stdout);
+		calibrated = TRUE;
 		gtk_widget_destroy((GtkWidget *)window);
 	}
 
@@ -282,11 +285,11 @@ int main(int argc, char **argv){
 
 	void sig_handler(int signo){
 		if (signo == SIGUSR1){ //IR
-			if(!freeze && xwii_event_ir_is_valid(&event.v.abs[0])) point_f(&event);
+			if(!calibrated && !freeze && xwii_event_ir_is_valid(&event.v.abs[0])) point_f(&event);
 			//ir_show(&event);
 		}
 		else if(signo==SIGUSR2){ //no IR
-			if(stop_ir) reset_point = TRUE;
+			if(!calibrated && stop_ir) reset_point = TRUE;
 			else freeze=FALSE;
 		}
 	}
