@@ -1,6 +1,6 @@
 /*
 ** TODO: dividere in più file
-** gcc `pkg-config --cflags gtk+-3.0` -o lightboard main.c monitor.c core.c -ludev -lX11 -lpthread `pkg-config --libs gtk+-3.0`
+** gcc `pkg-config --cflags gtk+-3.0` -o lightboard main.c monitor.c core.c -ludev -lX11 -lXtst -lpthread `pkg-config --libs gtk+-3.0`
 */
 #include <errno.h>
 #include <fcntl.h>
@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <gtk/gtk.h>
 #include <X11/Xlib.h>
+#include <X11/extensions/XTest.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <signal.h>
@@ -27,7 +28,6 @@
 
 static struct xwii_iface *iface;
 static pthread_t main_tid;
-#define IR_POINTER 1
 
 /*INTERFACCIA*/
 #define LABEL_SIZE 20
@@ -66,12 +66,10 @@ static int enumerate(){
 		printf("Cannot create monitor\n");
 		return -EINVAL;
 	}
-
 	while ((ent = xwii_monitor_poll(mon))) {
 		printf("  Found device #%d: %s\n", ++num, ent);
 		free(ent);
 	}
-
 	xwii_monitor_unref(mon);
 	return 0;
 }
@@ -80,49 +78,20 @@ static char *get_dev(int num){
 	struct xwii_monitor *mon;
 	char *ent;
 	int i = 0;
-
 	mon = xwii_monitor_new(false, false);
 	if (!mon) {
 		printf("Cannot create monitor\n");
 		return NULL;
 	}
-
 	while ((ent = xwii_monitor_poll(mon))) {
 		if (++i == num)
 			break;
 		free(ent);
 	}
-
 	xwii_monitor_unref(mon);
-
 	if (!ent)
 		printf("Cannot find device with number #%d\n", num);
-
 	return ent;
-}
-
-static void ir_show(const struct xwii_event *event){
-	int i;
-	for(i=0;i<IR_POINTER;i++){
-		if (xwii_event_ir_is_valid(&event->v.abs[i])) {
-			printf("IR X: %d\n", event->v.abs[i].x);
-			printf("IR Y: %d\n", event->v.abs[i].y);
-		}
-	}
-}
-
-static void ir_clear(void){
-	struct xwii_event ev;
-
-	ev.v.abs[0].x = 1023;
-	ev.v.abs[0].y = 1023;
-	ev.v.abs[1].x = 1023;
-	ev.v.abs[1].y = 1023;
-	ev.v.abs[2].x = 1023;
-	ev.v.abs[2].y = 1023;
-	ev.v.abs[3].x = 1023;
-	ev.v.abs[3].y = 1023;
-	ir_show(&ev);
 }
 
 static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
@@ -308,10 +277,10 @@ void post_calibration(){
 		printf("| %d", (int)matrix_x[i]);
 		printf("\n");
 	}
-	/*----------------------------secondo metodo----------------------------------*/
 	/*http://www.alexeypetrov.narod.ru/Eng/C/gauss_about.html*/
+	/*calcolo matrice*/
 	diagonal();
-   //process rows
+   	//process rows
 	for(k=0; k<8; k++){
 		for(i=k+1; i<8; i++){
 			if(matrix_A[k][k]==0){
@@ -334,13 +303,6 @@ void post_calibration(){
 	for(i=0; i<8; i++){
 		printf("X%d = %lf\n", i, matrix_res[i]);
 	}
-	printf("\nadesso stampo le coordinate schermo del primo punto\n");
-	float new_x,new_y;
-	new_x = ((matrix_res[0]*point_array[0].ir_x) + (matrix_res[1]*point_array[0].ir_y) + matrix_res[2]) /
-			((matrix_res[6]*point_array[0].ir_x) + (matrix_res[7]*point_array[0].ir_y) + 1);
-	new_y = ((matrix_res[3]*point_array[0].ir_x) + (matrix_res[4]*point_array[0].ir_y) + matrix_res[5]) /
-			((matrix_res[6]*point_array[0].ir_x) + (matrix_res[7]*point_array[0].ir_y) + 1);
-	printf("\n%f %f\n", new_x, new_y);
 	fflush(stdout);
 }
 
@@ -386,10 +348,20 @@ int main(int argc, char **argv){
 			else freeze=FALSE;
 		}
 		else if(calibrated && signo==SIGUSR1){
+			float new_x,new_y;
+			if(xwii_event_ir_is_valid(&event.v.abs[0])){
+				new_x = ((matrix_res[0]*event.v.abs[0].x) + (matrix_res[1]*event.v.abs[0].y) + matrix_res[2]) /
+						((matrix_res[6]*event.v.abs[0].x) + (matrix_res[7]*event.v.abs[0].y) + 1);
+				new_y = ((matrix_res[3]*event.v.abs[0].x) + (matrix_res[4]*event.v.abs[0].y) + matrix_res[5]) /
+						((matrix_res[6]*event.v.abs[0].x) + (matrix_res[7]*event.v.abs[0].y) + 1);
 
+				XTestFakeMotionEvent (dpy, 0, new_x, new_y, CurrentTime);
+  				XSync(dpy, 0);
+
+			}
 		}
 		else if(calibrated && signo==SIGUSR2){
-
+			printf("no");
 		}
 	}
 
@@ -409,7 +381,6 @@ int main(int argc, char **argv){
 		free(path);
 		if (ret) printf("Cannot create xwii_iface '%s' err:%d\n", argv[1], ret);
 		else {
-			ir_clear();
 			ret = xwii_iface_open(iface, xwii_iface_available(iface) | XWII_IFACE_WRITABLE);
 			if (ret) printf("Error: Cannot open interface: %d, use SUDO!", ret);
 			/*rimuove i messaggi dell'accelerometro e del motion plus*/
