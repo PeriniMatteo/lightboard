@@ -24,16 +24,10 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/types.h>
-#include "xwiimote.h"
+#include "../include/xwiimote.h"
 
 static struct xwii_iface *iface;
 static pthread_t main_tid;
-
-/*INTERFACCIA*/
-#define LABEL_SIZE 20
-#define SUM TRUE
-#define SUBTRACT FALSE
-#define DEFAULT_DISTANCE_FROM_BORDER 30
 
 GObject *layout, *window;
 GtkBuilder *builder;
@@ -41,38 +35,10 @@ GtkWidget *spinner;
 Display *dpy;
 Screen *s;
 int point, change;
-double matrix_A[9][9], matrix_x[9], matrix_res[20];;
+double matrix_A[9][9], matrix_x[9], matrix_res[20];
 gboolean reset_point, freeze, stop_ir, calibrated;
 
-typedef struct point_s {
-	GtkWidget *label;
-	int default_x;
-	int default_y;
-	int runtime_x;
-	int runtime_y;
-	int ir_x;
-	int ir_y;
-} point_s;
-
 point_s point_array[4];
-
-static int enumerate(){
-	struct xwii_monitor *mon;
-	char *ent;
-	int num = 0;
-
-	mon = xwii_monitor_new(false, false);
-	if (!mon) {
-		printf("Cannot create monitor\n");
-		return -EINVAL;
-	}
-	while ((ent = xwii_monitor_poll(mon))) {
-		printf("  Found device #%d: %s\n", ++num, ent);
-		free(ent);
-	}
-	xwii_monitor_unref(mon);
-	return 0;
-}
 
 static char *get_dev(int num){
 	struct xwii_monitor *mon;
@@ -341,7 +307,6 @@ int main(int argc, char **argv){
 	void sig_handler(int signo){
 		if (!calibrated && signo==SIGUSR1){ //IR
 			if(!freeze && xwii_event_ir_is_valid(&event.v.abs[0])) point_f(&event);
-			//ir_show(&event);
 		}
 		else if(!calibrated && signo==SIGUSR2){ //no IR
 			if(stop_ir) reset_point = TRUE;
@@ -369,11 +334,6 @@ int main(int argc, char **argv){
  	char *path = NULL;
 
 	if(argc < 2) printf("usage: min 1 parameter \n");
-		else if(!strcmp(argv[1], "list")){
-			printf("Listing devices\n");
-			ret = enumerate();
-			printf("end of device list\n");
-		}
 	else{
 		if (argv[1][0] != '/') path = get_dev(atoi(argv[1]));
 
@@ -398,7 +358,7 @@ int main(int argc, char **argv){
 			gtk_init (&argc, &argv);
 			/* Construct a GtkBuilder instance and load our UI description */
 		    builder = gtk_builder_new ();
-		    gtk_builder_add_from_file (builder, "spinners.ui", NULL);
+		    gtk_builder_add_from_file (builder, "../spinners.ui", NULL);
 
 			/*segnali - eliminare builder*/
 		    window = gtk_builder_get_object(builder,"window1");

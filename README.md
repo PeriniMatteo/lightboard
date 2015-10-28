@@ -1,6 +1,8 @@
 # Lightboard
-Stiamo lavorando per rifare Lightboard da zero, con un nuovo motore, nuova grafica, nuove funzionalità e per renderlo più compatibile e flessibile.
+We are working to remake Lightboard from zero, with a new engine, new graphic, new features and to make it more compatible and flexible.
 
-Trovate il vecchio progetto, non più mantenuto, [qui](https://github.com/GiovanniIncammicia/old_lightboard).
+Old project: [qui](https://github.com/GiovanniIncammicia/old_lightboard).
 
-Per qualsiasi domanda o richiesta, scrivere a questo indirizzo e-mail: giovanni.incammicia@gmail.com
+For every request, bug report, please open an issue [here](https://github.com/GiovanniIncammicia/lightboard/issues).
+
+E-mail: giovanni.incammicia@gmail.com
