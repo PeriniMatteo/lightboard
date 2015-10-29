@@ -1,29 +1,10 @@
-/*
-** TODO: dividere in più file
-** gcc `pkg-config --cflags gtk+-3.0` -o lightboard main.c monitor.c core.c -ludev -lX11 -lXtst -lpthread `pkg-config --libs gtk+-3.0`
-*/
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <math.h>
-#include <ncurses.h>
-#include <poll.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
+#include <errno.h>
+#include <signal.h>
+#include <pthread.h>
 #include <gtk/gtk.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/XTest.h>
-#include <pthread.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <sys/types.h>
 #include "../include/xwiimote.h"
 #include "../include/main.h"
 
@@ -40,7 +21,7 @@ gboolean reset_point, freeze, stop_ir, calibrated;
 
 point_s point_array[4];
 
-char *get_dev(int num){
+static char *get_dev(int num){
 	struct xwii_monitor *mon;
 	char *ent;
 	int i = 0;
@@ -58,56 +39,6 @@ char *get_dev(int num){
 	if (!ent)
 		printf("Cannot find device with number #%d\n", num);
 	return ent;
-}
-
-int run_iface(struct xwii_iface *iface, struct xwii_event *event){
-	int ret=0, fds_num;
-	struct pollfd fds[2];
-	int default_wait_time = 400;
-
-	memset(fds, 0, sizeof(fds));
-	fds[0].fd = 0;
-	fds[0].events = POLLIN;
-	fds[1].fd = xwii_iface_get_fd(iface);
-	fds[1].events = POLLIN;
-	fds_num = 2;
-	ret = xwii_iface_watch(iface, true);
-	if(ret) printf("errore");
-
-	while(true){
-		ret = poll(fds, fds_num, default_wait_time);
-		if(ret<0){
-			if(errno != EINTR){
-				ret = -errno;
-				printf("error");
-				break;
-			}
-		}
-		else if(!ret) pthread_kill(main_tid, SIGUSR2); //non viene rilevato nessun cambiamento nei dati IR
-
-		ret = xwii_iface_dispatch(iface, event, sizeof(*event));
-
-		if(ret){
-			if(ret !=-EAGAIN){
-				printf("error");
-				break;
-			}
-		}
-		else{
-			switch (event->type) {
-				case XWII_EVENT_GONE:
-					printf("Info: Device gone");
-					fds[1].fd = -1;
-					fds[1].events = 0;
-					fds_num = 1;
-					break;
-				case XWII_EVENT_IR:
-					pthread_kill(main_tid,SIGUSR1); //manda un segnale al thread
-					break;
-				default: printf("error");
-			}
-		}
-	}
 }
 
 void reset(){
@@ -130,8 +61,7 @@ void reset(){
 	gtk_widget_show_all((GtkWidget *) window);
 }
 
-
-/* TODO controlla se è stato premuto ESC, funzione di callback del segnale associato*/
+/* TODO callback function for key event*/
 static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
     if(event->keyval==GDK_KEY_Escape){
 		gtk_widget_destroy(widget);
@@ -141,7 +71,7 @@ static gboolean key_event(GtkWidget *widget, GdkEventKey *event){
 		change_distance_from_border(SUBTRACT);
     if(event->keyval==GDK_KEY_plus)
 		change_distance_from_border(SUM);
-	if(event->keyval==GDK_KEY_a)
+	if(event->keyval==GDK_KEY_r)
 		reset();
     return FALSE;
 }
@@ -152,34 +82,19 @@ int main(int argc, char **argv){
 	change = 1;
 
 	void sig_handler(int signo){
-		if (!calibrated && signo==SIGUSR1){ //IR
-			if(!freeze && xwii_event_ir_is_valid(&event.v.abs[0])) point_f(&event);
-		}
-		else if(!calibrated && signo==SIGUSR2){ //no IR
-			if(stop_ir) reset_point = TRUE;
-			else freeze=FALSE;
-		}
-		else if(calibrated && signo==SIGUSR1){
-			float new_x,new_y;
-			if(xwii_event_ir_is_valid(&event.v.abs[0])){
-				new_x = ((matrix_res[0]*event.v.abs[0].x) + (matrix_res[1]*event.v.abs[0].y) + matrix_res[2]) /
-						((matrix_res[6]*event.v.abs[0].x) + (matrix_res[7]*event.v.abs[0].y) + 1);
-				new_y = ((matrix_res[3]*event.v.abs[0].x) + (matrix_res[4]*event.v.abs[0].y) + matrix_res[5]) /
-						((matrix_res[6]*event.v.abs[0].x) + (matrix_res[7]*event.v.abs[0].y) + 1);
-
-				XTestFakeMotionEvent (dpy, 0, new_x, new_y, CurrentTime);
-  				XSync(dpy, 0);
-
+		if(!calibrated){
+			if (signo==SIGUSR1){ //IR
+				if(!freeze && xwii_event_ir_is_valid(&event.v.abs[0])) point_f(&event);
 			}
-		}
-		else if(calibrated && signo==SIGUSR2){
-			printf("no");
+			else if(signo==SIGUSR2){ //no IR
+				if(stop_ir) reset_point = TRUE;
+				else freeze=FALSE;
+			}
 		}
 	}
 
 	int ret = 0;
  	char *path = NULL;
-
 
 	if(argc < 2) printf("usage: min 1 parameter \n");
 	else{
@@ -191,7 +106,7 @@ int main(int argc, char **argv){
 		else {
 			ret = xwii_iface_open(iface, xwii_iface_available(iface) | XWII_IFACE_WRITABLE);
 			if (ret) printf("Error: Cannot open interface: %d, use SUDO!", ret);
-			/*rimuove i messaggi dell'accelerometro e del motion plus*/
+			/*remove accelerometer and motion plus messages from the interface*/
 			if (xwii_iface_opened(iface) & XWII_IFACE_ACCEL) xwii_iface_close(iface, XWII_IFACE_ACCEL);
 			if (xwii_iface_opened(iface) & XWII_IFACE_MOTION_PLUS) xwii_iface_close(iface, XWII_IFACE_MOTION_PLUS);
 
@@ -205,14 +120,13 @@ int main(int argc, char **argv){
 
 			gtk_init (&argc, &argv);
 
-			/*segnali*/
+			/*signals*/
 			window = (GObject *) gtk_window_new(GTK_WINDOW_TOPLEVEL);
 			layout = (GObject *) gtk_layout_new(NULL, NULL);
 
 		    g_signal_connect (window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
-			/*si esce se viene premuto ESC e altre cose*/
+			/*ESC, +, -, r*/
 		    g_signal_connect(window, "key-press-event", G_CALLBACK(key_event), NULL);
-
 
 		    dpy = XOpenDisplay(NULL);
 		    s = DefaultScreenOfDisplay(dpy);
@@ -226,7 +140,8 @@ int main(int argc, char **argv){
 		    gtk_window_fullscreen( (GtkWindow *) window);
 		    gtk_main ();
 
-			while(true) sleep(1);
+			while(!calibrated) sleep(1);
+			pthread_join(tid, NULL);
 		}
   }
 }

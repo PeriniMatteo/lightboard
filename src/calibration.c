@@ -1,25 +1,11 @@
 #include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <math.h>
-#include <ncurses.h>
-#include <poll.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-#include <time.h>
 #include <unistd.h>
+#include <poll.h>
 #include <gtk/gtk.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/XTest.h>
 #include <pthread.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <sys/types.h>
 #include "../include/xwiimote.h"
 #include "../include/main.h"
 
@@ -37,19 +23,80 @@ extern gboolean reset_point, freeze, stop_ir, calibrated;
 
 point_s point_array[4];
 
-void calibration_thread(struct xwii_event *event_p){
-	int ret = run_iface(iface, event_p);
-	/*xwii_iface_unref(iface);
-	if (ret) {
-		print_error("Program failed; press any key to exit");
-		refresh();
-		timeout(-1);
-		getch();
+static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
+	int ret=0, fds_num;
+	struct pollfd fds[2];
+	int default_wait_time = 400;
+
+	memset(fds, 0, sizeof(fds));
+	fds[0].fd = 0;
+	fds[0].events = POLLIN;
+	fds[1].fd = xwii_iface_get_fd(iface);
+	fds[1].events = POLLIN;
+	fds_num = 2;
+	ret = xwii_iface_watch(iface, true);
+	if(ret) printf("errore");
+
+	while(true){
+		ret = poll(fds, fds_num, default_wait_time);
+		if(ret<0){
+			if(errno != EINTR){
+				ret = -errno;
+				printf("error");
+				break;
+			}
+		}
+		else if(!ret) pthread_kill(main_tid, SIGUSR2); //no IR, send signal to main thread
+
+		ret = xwii_iface_dispatch(iface, event, sizeof(*event));
+
+		if(ret){
+			if(ret !=-EAGAIN){
+				printf("error");
+				break;
+			}
+		}
+		else{
+			switch (event->type) {
+				case XWII_EVENT_GONE:
+					printf("Info: Device gone");
+					fds[1].fd = -1;
+					fds[1].events = 0;
+					fds_num = 1;
+					break;
+				case XWII_EVENT_IR:
+					if(!calibrated)
+						pthread_kill(main_tid,SIGUSR1); //send signal to the main thread
+					else{
+						float new_x,new_y;
+						if(xwii_event_ir_is_valid(&event->v.abs[0])){
+							new_x = ((matrix_res[0]*event->v.abs[0].x) + (matrix_res[1]*event->v.abs[0].y) + matrix_res[2]) /
+									((matrix_res[6]*event->v.abs[0].x) + (matrix_res[7]*event->v.abs[0].y) + 1);
+							new_y = ((matrix_res[3]*event->v.abs[0].x) + (matrix_res[4]*event->v.abs[0].y) + matrix_res[5]) /
+									((matrix_res[6]*event->v.abs[0].x) + (matrix_res[7]*event->v.abs[0].y) + 1);
+
+							XTestFakeMotionEvent (dpy, 0, new_x, new_y, CurrentTime);
+			  				XSync(dpy, 0);
+
+						}
+					}
+					break;
+				default: printf("error");
+			}
+		}
 	}
-	endwin();*/
 }
 
-/* TODO fare un controllo sul massimo incremento possibile*/
+void calibration_thread(struct xwii_event *event_p){
+	int ret = run_iface(iface, event_p);
+	xwii_iface_unref(iface);
+	if (ret) {
+		printf("Program failed");
+		pthread_exit(&ret);
+	}
+}
+
+/* TODO make a control about maximum increasing*/
 void change_distance_from_border(gboolean action){
     int i;
 	reset();
@@ -68,7 +115,7 @@ void change_distance_from_border(gboolean action){
 	for(i=0;i<4;i++) gtk_layout_move((GtkLayout *)layout,point_array[i].label, point_array[i].runtime_x, point_array[i].runtime_y);
 }
 
-void diagonal(){
+static void diagonal(){
 	int i, j, k;
 	float temp=0;
 	for(i=0; i<8; i++){
@@ -91,23 +138,12 @@ void diagonal(){
 	}
 }
 
-void post_calibration(){
+static void post_calibration(){
 	int i, j, k;
-	printf("coordinate IR\n");
-	printf("%d %d\n",point_array[0].ir_x,point_array[0].ir_y );
-	printf("%d %d\n",point_array[1].ir_x,point_array[1].ir_y );
-	printf("%d %d\n",point_array[2].ir_x,point_array[2].ir_y );
-	printf("%d %d\n",point_array[3].ir_x,point_array[3].ir_y );
-	printf("coordinate schermo\n");
-	printf("%d %d\n",point_array[0].runtime_x,point_array[0].runtime_y );
-	printf("%d %d\n",point_array[1].runtime_x,point_array[1].runtime_y );
-	printf("%d %d\n",point_array[2].runtime_x,point_array[2].runtime_y );
-	printf("%d %d\n",point_array[3].runtime_x,point_array[3].runtime_y );
-	fflush(stdout);
 	calibrated = TRUE;
 	gtk_widget_destroy((GtkWidget *)window);
 
-	//creazione matrice
+	//matrices creation
 	for(i=0;i<8;i=i+2){
 		matrix_A[i][0] = point_array[i/2].ir_x;
 		matrix_A[i][1] = point_array[i/2].ir_y;
@@ -126,22 +162,15 @@ void post_calibration(){
 		matrix_x[i] = point_array[i/2].runtime_x;
 		matrix_x[i+1] = point_array[i/2].runtime_y;
 	}
-	printf("matrice A | matrice x\n");
-	for(i=0;i<8;i++){
-		for(j=0;j<8;j++){
-			printf("%d ", (int)matrix_A[i][j]);
-		}
-		printf("| %d", (int)matrix_x[i]);
-		printf("\n");
-	}
+
 	/*http://www.alexeypetrov.narod.ru/Eng/C/gauss_about.html*/
-	/*calcolo matrice*/
+	/*linear system calculation*/
 	diagonal();
    	//process rows
 	for(k=0; k<8; k++){
 		for(i=k+1; i<8; i++){
 			if(matrix_A[k][k]==0){
-				printf("\nSolution is not exist.\n");
+				printf("\nSolution is not exist.\n"); /*TODO insert an error system*/
 				return;
 			}
 			float M = matrix_A[i][k] / matrix_A[k][k];
@@ -156,14 +185,9 @@ void post_calibration(){
 			s = s+matrix_A[i][j]*matrix_res[j];
 		matrix_res[i] = (matrix_x[i] - s) / matrix_A[i][i];
 	}
-	printf("Result:\n");
-	for(i=0; i<8; i++){
-		printf("X%d = %lf\n", i, matrix_res[i]);
-	}
-	fflush(stdout);
 }
 
-gboolean post_sleep_calibration(){
+static gboolean post_sleep_calibration(){
 	if(!reset_point) gtk_widget_destroy((GtkWidget *) spinner);
 	else reset();
 	stop_ir = FALSE;
@@ -174,12 +198,12 @@ gboolean post_sleep_calibration(){
 void point_f(struct xwii_event *event){
 	freeze = TRUE;
 	stop_ir = TRUE;
-	reset_point=FALSE; //se dopo il timeout questo reset_point diventa TRUE, viene resettato tutto il processo di calibrazione
+	reset_point=FALSE; //if after timeout this variable is set to TRUE, reset()
 	if(point<4){
 		spinner = gtk_spinner_new();
 		gtk_spinner_start (GTK_SPINNER (spinner));
-		gtk_widget_set_size_request(spinner,40,40); //mettere in variabili
-		gtk_layout_put((GtkLayout *)layout,spinner,(gint) point_array[point].runtime_x-10,point_array[point].runtime_y-10); /*aggiustamento per centrare il numero nello spinner*/
+		gtk_widget_set_size_request(spinner,40,40);
+		gtk_layout_put((GtkLayout *)layout,spinner,(gint) point_array[point].runtime_x-10,point_array[point].runtime_y-10); /*centering spinners*/
 		gtk_widget_destroy(GTK_WIDGET(point_array[point].label));
 		gtk_widget_show(spinner);
 

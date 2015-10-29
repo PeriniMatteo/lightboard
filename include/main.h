@@ -16,14 +16,9 @@ typedef struct point_s {
 	int ir_y;
 } point_s;
 
-char *get_dev(int);
-int run_iface(struct xwii_iface *, struct xwii_event *);
 void reset();
 void calibration_thread(struct xwii_event *);
 void change_distance_from_border(gboolean);
-void diagonal();
-void post_calibration();
-gboolean post_sleep_calibration();
 void point_f(struct xwii_event *event);
 
 #endif
