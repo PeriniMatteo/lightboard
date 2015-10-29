@@ -25,7 +25,7 @@ Because of the lack of connection routine you have to connect Wiimote with a sof
 2. open Blueman (or another Bluetooth device manager)  
 3. click right button on the device and select "connect to: Input Service"  
 4. open a terminal and move to Lightboard directory, launch "make"  
-5. execute Lightboard with "sudo ./lightboard 1" where 1 indicates your first connected Bluetooth device (if Wiimote is the only device connected to the system, otherwise use "sudo ./lightboard <BT_ADDR>")
+5. execute Lightboard with "sudo ./lightboard 1" where 1 indicates your first connected Bluetooth device (if Wiimote is the only device connected to the system, otherwise use "sudo ./lightboard <BT_ADDR>")  
 
 
 Note that sudo is necessary because xwiimote library uses udev system and talks with Wiimote at kernel level.
