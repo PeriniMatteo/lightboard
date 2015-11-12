@@ -1,13 +1,22 @@
 #ifndef __MAIN_H
 #define __MAIN_H
+#include <QApplication>
+#include <QWidget>
+#include <QLabel>
 
 #define LABEL_SIZE 20
 #define SUM TRUE
 #define SUBTRACT FALSE
 #define DEFAULT_DISTANCE_FROM_BORDER 30
+#define FALSE 0
+#define TRUE 1
+#define FIRST_COMMAND "Point your IR pen on the number 1 and hold for 1 second"
+#define SECOND_COMMAND "Now release your IR pen and point it on the number 2 and hold for 1 second"
+#define THIRD_COMMAND "Now repeat for number 3"
+#define FOURTH_COMMAND "Finally number 4"
 
 typedef struct point_s {
-	GtkWidget *label;
+	QLabel *label;
 	int default_x;
 	int default_y;
 	int runtime_x;
@@ -16,9 +25,22 @@ typedef struct point_s {
 	int ir_y;
 } point_s;
 
+class CalibrationWindow : public QWidget {
+	Q_OBJECT
+	public:
+		point_s point_array[4];
+		QLabel *instruction;
+		CalibrationWindow(QWidget *parent = 0);
+		void keyPressEvent(QKeyEvent * e);
+		void setTimer();
+	private slots:
+    	void post_sleep_calibration();
+};
+
 void reset();
-void calibration_thread(struct xwii_event *);
-void change_distance_from_border(gboolean);
+void *calibration_thread(void *);
+void change_distance_from_border(int); //TODO booleano
 void point_f(struct xwii_event *event);
+void post_calibration();
 
 #endif
