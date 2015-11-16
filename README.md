@@ -1,4 +1,5 @@
 # Lightboard
+Lightboard is a software to build an electronic whiteboard with a Wiimote and an IR pen.
 We are working to remake Lightboard from zero, with a new engine, new graphic, new features and to make it more compatible and flexible.
 
 ### Why Lightboard?
@@ -29,7 +30,6 @@ Because of the lack of connection routine you have to connect Wiimote with a sof
 
 
 Note that sudo is necessary because xwiimote library uses udev system and talks with Wiimote at kernel level.
-
 
 For every request, bug report, please open an issue [here](https://github.com/GiovanniIncammicia/lightboard/issues).
 

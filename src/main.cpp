@@ -11,6 +11,7 @@
 #include <X11/Xlib.h>
 #include "../include/xwiimote.h"
 #include "../include/main.h"
+#include "../include/QProgressIndicator.h"
 
 struct xwii_iface *iface;
 struct xwii_event event;
@@ -21,12 +22,13 @@ int point, change; //interi
 double matrix_A[9][9], matrix_x[9], matrix_res[20];
 int reset_point, freeze, stop_ir, calibrated; //TODO booleani
 CalibrationWindow *window;
-char *command[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
+char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
 
 CalibrationWindow::CalibrationWindow(QWidget *parent) : QWidget(parent) {
     int i;
     for(i=0;i<4;i++) point_array[i].label = new QLabel(QString::number(i+1), this);
-    instruction = new QLabel(command[0], this);
+    for(i=0;i<4;i++) spinners[i] = new QProgressIndicator(this);
+    instruction = new QLabel(commands[0], this);
     instruction->setGeometry((s->width/2)-250, (s->height/2)-250, 500, 500);
 }
 
@@ -54,7 +56,8 @@ void CalibrationWindow::setTimer() {
 
 void CalibrationWindow::post_sleep_calibration(){
     if(!reset_point) {
-        instruction->setText(command[point]);
+        instruction->setText(commands[point]);
+        spinners[point-1]->hide();
     }
 	else reset();
 	stop_ir = FALSE;
@@ -93,6 +96,7 @@ void reset(){
 		window->point_array[i].runtime_x = window->point_array[i].default_x;
 		window->point_array[i].runtime_y = window->point_array[i].default_y;
         window->point_array[i].label->show();
+        window->spinners[i]->hide();
 	}
 }
 

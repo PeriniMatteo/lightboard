@@ -8,4 +8,6 @@ CONFIG += warn_off
 
 # Input
 SOURCES += src/*.cpp lib/*
-HEADERS += include/main.h
+HEADERS += include/main.h include/QProgressIndicator.h
+
+#ICON =

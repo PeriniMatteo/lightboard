@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QWidget>
 #include <QLabel>
+#include "../include/QProgressIndicator.h"
 
 #define LABEL_SIZE 20
 #define SUM TRUE
@@ -30,6 +31,7 @@ class CalibrationWindow : public QWidget {
 	public:
 		point_s point_array[4];
 		QLabel *instruction;
+		QProgressIndicator *spinners[4];
 		CalibrationWindow(QWidget *parent = 0);
 		void keyPressEvent(QKeyEvent * e);
 		void setTimer();

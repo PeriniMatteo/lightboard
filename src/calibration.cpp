@@ -9,6 +9,7 @@
 #include <string.h>
 #include "../include/xwiimote.h"
 #include "../include/main.h"
+#include "../include/QProgressIndicator.h"
 #include <X11/Xlib.h>
 #include <X11/extensions/XTest.h>
 
@@ -118,7 +119,9 @@ void point_f(struct xwii_event *event){
 	reset_point=FALSE; //if after timeout this variable is set to TRUE, reset()
 
 	if(point<4){
-		//put spinner here
+		window->spinners[point]->setGeometry(window->point_array[point].runtime_x - LABEL_SIZE+5,window->point_array[point].runtime_y - LABEL_SIZE/2 , LABEL_SIZE*2, LABEL_SIZE*2); //TODO adjust constant
+        window->spinners[point]->startAnimation();
+        window->spinners[point]->show();
 		window->point_array[point].label->hide();
 
 		window->point_array[point].ir_x = event->v.abs[0].x;
