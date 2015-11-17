@@ -5,6 +5,7 @@
 TEMPLATE = app
 LIBS += -ludev -lX11 -lXtst -lpthread
 CONFIG += warn_off
+RESOURCES = systray.qrc
 
 # Input
 SOURCES += src/*.cpp lib/*

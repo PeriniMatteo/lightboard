@@ -4,6 +4,8 @@
 #include <QKeyEvent>
 #include <QTimer>
 #include <QString>
+#include <QMenu>
+#include <QtGui>
 #include <stdio.h>
 #include <pthread.h>
 #include <errno.h>
@@ -22,6 +24,7 @@ int point, change; //interi
 double matrix_A[9][9], matrix_x[9], matrix_res[20];
 int reset_point, freeze, stop_ir, calibrated; //TODO booleani
 CalibrationWindow *window;
+ConfigurationWindow *config;
 char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
 
 CalibrationWindow::CalibrationWindow(QWidget *parent) : QWidget(parent) {
@@ -62,11 +65,59 @@ void CalibrationWindow::post_sleep_calibration(){
 	else reset();
 	stop_ir = FALSE;
 	if(point==4){
-		qApp->quit();
-        QObject::deleteLater();
+		close();
+        config = new ConfigurationWindow();
+        config->resize(400, 400);
+        config->setWindowTitle("ConfigurationWindow");
         post_calibration();
 	}
 }
+
+/****/
+void ConfigurationWindow::createActions(){
+    openConfigurationAction = new QAction(tr("Configuration"), this);
+    connect(openConfigurationAction, SIGNAL(triggered()), this, SLOT(openConfiguration()));
+
+    informationAction = new QAction(tr("Information"), this);
+    connect(informationAction, SIGNAL(triggered()), this, SLOT(information()));
+
+    quitAction = new QAction(tr("&Quit"), this);
+    connect(quitAction, SIGNAL(triggered()), this, SLOT(exitApp()));
+}
+void ConfigurationWindow::exitApp(){
+    qApp->quit();
+    QObject::deleteLater();
+    exit(1);
+}
+void ConfigurationWindow::createTrayIcon()
+{
+    trayIconMenu = new QMenu(this);
+    trayIconMenu->addAction(openConfigurationAction);
+    trayIconMenu->addAction(informationAction);
+    trayIconMenu->addSeparator();
+    trayIconMenu->addAction(quitAction);
+
+    trayIcon = new QSystemTrayIcon(this);
+    trayIcon->setContextMenu(trayIconMenu);
+}
+void ConfigurationWindow::setIcon(){
+     QIcon icon = QIcon(":/images/icon.png");
+     trayIcon->setIcon(icon);
+     setWindowIcon(icon);
+}
+ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
+    /***/
+    createActions(); /*create callback function for menu fields*/
+    createTrayIcon(); /*create tray icon*/
+    setIcon();
+    trayIcon->show();
+}
+
+void ConfigurationWindow::information(){}
+void ConfigurationWindow::openConfiguration(){
+    show();
+}
+/***/
 
 static char *get_dev(int num){
 	struct xwii_monitor *mon;
@@ -142,7 +193,15 @@ int main(int argc, char *argv[]) {
 
         dpy = XOpenDisplay(NULL);
 		s = DefaultScreenOfDisplay(dpy);
+        Q_INIT_RESOURCE(systray);
 		QApplication app(argc, argv);
+        if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+            /*QMessageBox::critical(0, QObject::tr("Systray"),
+                               QObject::tr("I couldn't detect any system tray "
+                                           "on this system."));*/
+            return 1;
+        }
+        QApplication::setQuitOnLastWindowClosed(false);
 		window = new CalibrationWindow();
 
 		int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;

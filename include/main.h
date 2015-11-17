@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QWidget>
 #include <QLabel>
+#include <QSystemTrayIcon>
 #include "../include/QProgressIndicator.h"
 
 #define LABEL_SIZE 20
@@ -37,6 +38,25 @@ class CalibrationWindow : public QWidget {
 		void setTimer();
 	private slots:
     	void post_sleep_calibration();
+};
+
+class ConfigurationWindow : public QWidget {
+	Q_OBJECT
+	public:
+		ConfigurationWindow(QWidget *parent = 0);
+	private:
+		QAction *openConfigurationAction;
+		QAction *informationAction;
+	    QAction *quitAction;
+		QMenu *trayIconMenu;
+		QSystemTrayIcon *trayIcon;
+		void createActions();
+	    void createTrayIcon();
+		void setIcon();
+	private slots:
+		void openConfiguration();
+		void information();
+		void exitApp();
 };
 
 void reset();
