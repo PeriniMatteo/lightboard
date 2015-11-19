@@ -1,9 +1,17 @@
 #ifndef __MAIN_H
 #define __MAIN_H
 #include <QApplication>
+#include <QtGui>
 #include <QWidget>
 #include <QLabel>
 #include <QSystemTrayIcon>
+#include <QPushButton>
+#include <QGridLayout>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QProgressBar>
+#include <QCheckBox>
+#include <QSlider>
 #include "../include/QProgressIndicator.h"
 
 #define LABEL_SIZE 20
@@ -12,6 +20,7 @@
 #define DEFAULT_DISTANCE_FROM_BORDER 30
 #define FALSE 0
 #define TRUE 1
+#define AREA_WIIMOTE_IR_CAMERA 786432
 #define FIRST_COMMAND "Point your IR pen on the number 1 and hold for 1 second"
 #define SECOND_COMMAND "Now release your IR pen and point it on the number 2 and hold for 1 second"
 #define THIRD_COMMAND "Now repeat for number 3"
@@ -43,6 +52,19 @@ class CalibrationWindow : public QWidget {
 class ConfigurationWindow : public QWidget {
 	Q_OBJECT
 	public:
+		QGridLayout *gridLayout;
+		QLabel *btAddressLabel;
+		QLabel *btAddressValue;
+		QPushButton *calibrateButton;
+		QLabel *coverageLabel;
+		QLabel *coverageValue;
+		QGraphicsScene *scene;
+		QGraphicsView *view;
+		QLabel *batteryLabel;
+		QProgressBar *batteryValue;
+		QCheckBox *checkbox;
+		QLabel *sensibilityLabel;
+		QSlider *slider;
 		ConfigurationWindow(QWidget *parent = 0);
 	private:
 		QAction *openConfigurationAction;

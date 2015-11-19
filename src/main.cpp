@@ -7,9 +7,11 @@
 #include <QMenu>
 #include <QtGui>
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 #include <signal.h>
+#include <cmath>
 #include <X11/Xlib.h>
 #include "../include/xwiimote.h"
 #include "../include/main.h"
@@ -26,6 +28,27 @@ int reset_point, freeze, stop_ir, calibrated; //TODO booleani
 CalibrationWindow *window;
 ConfigurationWindow *config;
 char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
+
+static uint8_t get_battery(void)
+{
+	uint8_t capacity;
+
+	if (xwii_iface_get_battery(iface, &capacity)) printf("Error: Cannot read battery capacity");
+	else return capacity;
+}
+
+static char *get_coverage(void){
+	float distance_01 = sqrt( pow((window->point_array[1].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[1].ir_y - window->point_array[0].ir_y),2) );
+	float distance_03 = sqrt( pow((window->point_array[3].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[0].ir_y),2) );
+	float area_013 = (distance_01*distance_03)/2;
+	float distance_23 = sqrt( pow((window->point_array[3].ir_x - window->point_array[2].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[2].ir_y),2) );
+	float distance_12 = sqrt( pow((window->point_array[2].ir_x - window->point_array[1].ir_x),2) + pow((window->point_array[2].ir_y - window->point_array[1].ir_y),2) );
+	float area_123 = (distance_23*distance_12)/2;
+	float area = area_013+area_123;
+	char coverage[4];
+	snprintf(coverage, sizeof(coverage), "%d%%", (int)(area*100)/AREA_WIIMOTE_IR_CAMERA);
+	return coverage;
+}
 
 CalibrationWindow::CalibrationWindow(QWidget *parent) : QWidget(parent) {
     int i;
@@ -67,7 +90,7 @@ void CalibrationWindow::post_sleep_calibration(){
 	if(point==4){
 		close();
         config = new ConfigurationWindow();
-        config->resize(400, 400);
+        config->resize(350, 400);
         config->setWindowTitle("ConfigurationWindow");
         post_calibration();
 	}
@@ -106,7 +129,42 @@ void ConfigurationWindow::setIcon(){
      setWindowIcon(icon);
 }
 ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
-    /***/
+    gridLayout = new QGridLayout();
+    btAddressLabel = new QLabel("Connected to:");
+    btAddressValue = new QLabel("XX:XX:XX:XX:XX:XX");
+    calibrateButton = new QPushButton("Calibrate",this);
+    coverageLabel = new QLabel("Coverage:");
+    coverageValue = new QLabel();
+	coverageValue->setText(get_coverage());
+    scene = new QGraphicsScene(this);
+    view = new QGraphicsView(this);
+    view->setScene(scene);
+    batteryLabel = new QLabel("Battery:");
+    batteryValue = new QProgressBar();
+    batteryValue->setMinimum(0);
+    batteryValue->setMaximum(100);
+    batteryValue->setValue(get_battery());
+    checkbox = new QCheckBox("Move only", this);
+    checkbox->setChecked(true);
+    sensibilityLabel = new QLabel("Sensibility:");
+    slider = new QSlider(Qt::Horizontal,0);
+    gridLayout->setVerticalSpacing(10);
+    gridLayout->setRowStretch(3, 10);
+
+    gridLayout->addWidget(btAddressLabel,0,0,1,1);
+    gridLayout->addWidget(btAddressValue,0,1,1,1);
+    gridLayout->addWidget(calibrateButton,1,0,1,2);
+    gridLayout->addWidget(coverageLabel,2,0,1,1);
+    gridLayout->addWidget(coverageValue,2,1,1,1);
+    gridLayout->addWidget(view,3,0,3,2);
+    gridLayout->addWidget(batteryLabel,6,0,1,1);
+    gridLayout->addWidget(batteryValue,6,1,1,1);
+    gridLayout->addWidget(checkbox,7,0,1,1);
+    gridLayout->addWidget(sensibilityLabel,8,0,1,1);
+    gridLayout->addWidget(slider,8,1,1,1);
+
+    setLayout(gridLayout);
+
     createActions(); /*create callback function for menu fields*/
     createTrayIcon(); /*create tray icon*/
     setIcon();
