@@ -114,9 +114,8 @@ void change_distance_from_border(int action){
 }
 
 void point_f(struct xwii_event *event){
-	freeze = TRUE;
-	stop_ir = TRUE;
-	reset_point=FALSE; //if after timeout this variable is set to TRUE, reset()
+	freeze = stop_ir = TRUE;
+	reset_point = FALSE; //if after timeout this variable is set to TRUE, reset()
 
 	if(point<4){
 		window->spinners[point]->setGeometry(window->point_array[point].runtime_x - LABEL_SIZE+5,window->point_array[point].runtime_y - LABEL_SIZE/2 , LABEL_SIZE*2, LABEL_SIZE*2); //TODO adjust constant
@@ -194,10 +193,23 @@ void post_calibration(){
 			matrix_x[i] -= M*matrix_x[k];
 		}
 	}
+	for(i=0;i<8;i++) matrix_res[i] = 0;
 	for(i=8-1; i>=0; i--){
 		float s = 0;
 		for(j = i; j<8; j++)
 			s = s+matrix_A[i][j]*matrix_res[j];
 		matrix_res[i] = (matrix_x[i] - s) / matrix_A[i][i];
 	}
+
+	/*printf("AAAA\n");
+	for(i=0;i<8;i++){
+		for(j=0;j<8;j++){
+			printf("%.1f ", matrix_A[i][j]);
+		}
+		printf("\n" );
+	}fflush(stdout);
+	printf("XXXX\n");
+	for(i=0;i<8;i++) printf("%.1f ",matrix_x[i] ); printf("\n");fflush(stdout);
+	printf("RRRR\n");*/
+
 }

@@ -78,6 +78,7 @@ class ConfigurationWindow : public QWidget {
 	private slots:
 		void openConfiguration();
 		void information();
+		void startCalibration();
 		void exitApp();
 };
 

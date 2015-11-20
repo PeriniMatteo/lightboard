@@ -32,7 +32,6 @@ char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAN
 static uint8_t get_battery(void)
 {
 	uint8_t capacity;
-
 	if (xwii_iface_get_battery(iface, &capacity)) printf("Error: Cannot read battery capacity");
 	else return capacity;
 }
@@ -50,6 +49,22 @@ static char *get_coverage(void){
 	return coverage;
 }
 
+void start_calibration(){
+	freeze = stop_ir = calibrated = FALSE;
+	change = 1;
+	window = new CalibrationWindow();
+
+	int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
+	int bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
+	window->point_array[0].default_x = window->point_array[0].default_y = window->point_array[1].default_y = window->point_array[3].default_x = DEFAULT_DISTANCE_FROM_BORDER;
+	window->point_array[1].default_x = window->point_array[2].default_x = right_distance;
+	window->point_array[2].default_y = window->point_array[3].default_y = bottom_distance;
+	reset();
+	window->resize(400, 400);
+	window->setWindowTitle("CalibrationWindow");
+	window->showFullScreen();
+}
+
 CalibrationWindow::CalibrationWindow(QWidget *parent) : QWidget(parent) {
     int i;
     for(i=0;i<4;i++) point_array[i].label = new QLabel(QString::number(i+1), this);
@@ -60,9 +75,10 @@ CalibrationWindow::CalibrationWindow(QWidget *parent) : QWidget(parent) {
 
 void CalibrationWindow::keyPressEvent(QKeyEvent *event) {
 	if (event->key() == Qt::Key_Escape) {
-		qApp->quit();
-		QObject::deleteLater();
-		exit(1);
+		close();
+        config = new ConfigurationWindow();
+        config->resize(350, 400);
+        config->setWindowTitle("ConfigurationWindow");
 	}
 	if(event->key() == Qt::Key_Plus){
 		change_distance_from_border(SUM);
@@ -85,7 +101,10 @@ void CalibrationWindow::post_sleep_calibration(){
         instruction->setText(commands[point]);
         spinners[point-1]->hide();
     }
-	else reset();
+	else{
+		change = 1;
+		reset();
+	}
 	stop_ir = FALSE;
 	if(point==4){
 		close();
@@ -133,6 +152,7 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
     btAddressLabel = new QLabel("Connected to:");
     btAddressValue = new QLabel("XX:XX:XX:XX:XX:XX");
     calibrateButton = new QPushButton("Calibrate",this);
+	connect(calibrateButton, SIGNAL(clicked()), this, SLOT(startCalibration()));
     coverageLabel = new QLabel("Coverage:");
     coverageValue = new QLabel();
 	coverageValue->setText(get_coverage());
@@ -175,6 +195,13 @@ void ConfigurationWindow::information(){}
 void ConfigurationWindow::openConfiguration(){
     show();
 }
+
+void ConfigurationWindow::startCalibration(){
+	::start_calibration();
+	trayIcon->~QSystemTrayIcon();
+	close();
+}
+
 /***/
 
 static char *get_dev(int num){
@@ -200,6 +227,7 @@ static char *get_dev(int num){
 void reset(){
 	int i;
 	point = 0;
+	window->instruction->setText(commands[0]);
 	for(i=0;i<4;i++){
 		window->point_array[i].label->setGeometry(window->point_array[i].default_x,window->point_array[i].default_y , LABEL_SIZE, LABEL_SIZE);
 		window->point_array[i].runtime_x = window->point_array[i].default_x;
@@ -223,7 +251,7 @@ void sig_handler(int signo){
 
 int main(int argc, char *argv[]) {
     int ret = 0;
-	change = 1;
+	//change = 1;
  	char *path = NULL;
     if(argc < 2) {
         printf("usage: min 1 parameter \n");
@@ -260,18 +288,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         QApplication::setQuitOnLastWindowClosed(false);
-		window = new CalibrationWindow();
-
-		int right_distance = s->width - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
-		int bottom_distance = s->height - DEFAULT_DISTANCE_FROM_BORDER - LABEL_SIZE;
-		window->point_array[0].default_x = window->point_array[0].default_y = window->point_array[1].default_y = window->point_array[3].default_x = DEFAULT_DISTANCE_FROM_BORDER;
-		window->point_array[1].default_x = window->point_array[2].default_x = right_distance;
-		window->point_array[2].default_y = window->point_array[3].default_y = bottom_distance;
-		reset();
-		window->resize(400, 400);
-		window->setWindowTitle("CalibrationWindow");
-		window->showFullScreen();
+		start_calibration();
 		app.exec();
-		pthread_join(tid, NULL); //TODO !!!
+		pthread_join(tid, NULL);
 	}
 }
