@@ -11,8 +11,16 @@
 #include <pthread.h>
 #include <errno.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/wait.h>
 #include <cmath>
 #include <X11/Xlib.h>
+
+#include <sys/socket.h>
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
 #include "../include/xwiimote.h"
 #include "../include/main.h"
 #include "../include/QProgressIndicator.h"
@@ -28,6 +36,7 @@ int reset_point, freeze, stop_ir, calibrated; //TODO booleani
 CalibrationWindow *window;
 ConfigurationWindow *config;
 char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
+char btaddress[19];
 
 static uint8_t get_battery(void)
 {
@@ -37,16 +46,19 @@ static uint8_t get_battery(void)
 }
 
 static char *get_coverage(void){
-	float distance_01 = sqrt( pow((window->point_array[1].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[1].ir_y - window->point_array[0].ir_y),2) );
-	float distance_03 = sqrt( pow((window->point_array[3].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[0].ir_y),2) );
-	float area_013 = (distance_01*distance_03)/2;
-	float distance_23 = sqrt( pow((window->point_array[3].ir_x - window->point_array[2].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[2].ir_y),2) );
-	float distance_12 = sqrt( pow((window->point_array[2].ir_x - window->point_array[1].ir_x),2) + pow((window->point_array[2].ir_y - window->point_array[1].ir_y),2) );
-	float area_123 = (distance_23*distance_12)/2;
-	float area = area_013+area_123;
-	char coverage[4];
-	snprintf(coverage, sizeof(coverage), "%d%%", (int)(area*100)/AREA_WIIMOTE_IR_CAMERA);
-	return coverage;
+	if(calibrated){
+		float distance_01 = sqrt( pow((window->point_array[1].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[1].ir_y - window->point_array[0].ir_y),2) );
+		float distance_03 = sqrt( pow((window->point_array[3].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[0].ir_y),2) );
+		float area_013 = (distance_01*distance_03)/2;
+		float distance_23 = sqrt( pow((window->point_array[3].ir_x - window->point_array[2].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[2].ir_y),2) );
+		float distance_12 = sqrt( pow((window->point_array[2].ir_x - window->point_array[1].ir_x),2) + pow((window->point_array[2].ir_y - window->point_array[1].ir_y),2) );
+		float area_123 = (distance_23*distance_12)/2;
+		float area = area_013+area_123;
+		char coverage[4];
+		snprintf(coverage, sizeof(coverage), "%d%%", (int)(area*100)/AREA_WIIMOTE_IR_CAMERA);
+		return coverage;
+	}
+	else return "0%";
 }
 
 void start_calibration(){
@@ -108,10 +120,10 @@ void CalibrationWindow::post_sleep_calibration(){
 	stop_ir = FALSE;
 	if(point==4){
 		close();
+		post_calibration();
         config = new ConfigurationWindow();
         config->resize(350, 400);
         config->setWindowTitle("ConfigurationWindow");
-        post_calibration();
 	}
 }
 
@@ -129,6 +141,14 @@ void ConfigurationWindow::createActions(){
 void ConfigurationWindow::exitApp(){
     qApp->quit();
     QObject::deleteLater();
+	xwii_iface_unref(iface);
+	char* command[5];
+	command[0]="bt-input";
+	command[1]="-d";
+	command[2]=btaddress;
+	command[3]=NULL;
+	if(fork()==0) execvp(command[0],command);
+	else wait((void *)NULL);
     exit(1);
 }
 void ConfigurationWindow::createTrayIcon()
@@ -150,7 +170,7 @@ void ConfigurationWindow::setIcon(){
 ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
     gridLayout = new QGridLayout();
     btAddressLabel = new QLabel("Connected to:");
-    btAddressValue = new QLabel("XX:XX:XX:XX:XX:XX");
+    btAddressValue = new QLabel(btaddress);
     calibrateButton = new QPushButton("Calibrate",this);
 	connect(calibrateButton, SIGNAL(clicked()), this, SLOT(startCalibration()));
     coverageLabel = new QLabel("Coverage:");
@@ -249,16 +269,54 @@ void sig_handler(int signo){
 	}
 }
 
-int main(int argc, char *argv[]) {
-    int ret = 0;
-	//change = 1;
- 	char *path = NULL;
-    if(argc < 2) {
-        printf("usage: min 1 parameter \n");
+void inquiry(char *addr){
+	inquiry_info *ii = NULL;
+    int max_rsp = 255, num_rsp = 0;
+    int dev_id, sock, len, flags;
+    int i;
+    char name[248] = { 0 };
+
+    dev_id = hci_get_route(NULL);
+    sock = hci_open_dev( dev_id );
+    if (dev_id < 0 || sock < 0) {
+        perror("opening socket");
         exit(1);
     }
-    if (argv[1][0] != '/') path = get_dev(atoi(argv[1]));
 
+    len  = 8;
+    flags = IREQ_CACHE_FLUSH;
+    ii = (inquiry_info*)malloc(max_rsp * sizeof(inquiry_info));
+	while(num_rsp==0) num_rsp = hci_inquiry(dev_id, len, max_rsp, NULL, &ii, flags);
+    if( num_rsp < 0 ) perror("hci_inquiry");
+
+    for (i = 0; i < num_rsp; i++) {
+        ba2str(&(ii+i)->bdaddr, addr);
+        memset(name, 0, sizeof(name));
+        if (hci_read_remote_name(sock, &(ii+i)->bdaddr, sizeof(name), name, 0) < 0) strcpy(name, "[unknown]");
+		if(!strcmp(name, "Nintendo RVL-CNT-01") || !strcmp(name, "Nintendo RVL-CNT-01-TR")) break;
+    }
+
+    free( ii );
+	close( sock );
+}
+
+int main(int argc, char *argv[]) {
+    int ret = 0;
+ 	char *path = NULL;
+	int status;
+	char* command[5];
+	command[0]="bt-input";
+	command[1]="-c";
+	command[2]=(char *) malloc(sizeof(char)*19);
+	command[3]=NULL;
+	printf("Press sync button on Wiimote.\n");fflush(stdout);
+	inquiry(command[2]);
+	if(fork()==0) execvp(command[0],command);
+	else wait(&status);
+
+	strcpy(btaddress, command[2]);
+	sleep(1);
+	path = get_dev(1);
     ret = xwii_iface_new(&iface, path ? path : argv[1]);
     free(path);
     if (ret) printf("Cannot create xwii_iface '%s' err:%d\n", argv[1], ret);

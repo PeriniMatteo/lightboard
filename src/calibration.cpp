@@ -34,14 +34,14 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	fds[1].events = POLLIN;
 	fds_num = 2;
 	ret = xwii_iface_watch(iface, true);
-	if(ret) printf("errore");
+	if(ret) printf("error xwii_iface_watch");
 
 	while(true){
 		ret = poll(fds, fds_num, default_wait_time);
 		if(ret<0){
 			if(errno != EINTR){
 				ret = -errno;
-				printf("error");
+				printf("error poll");
 				break;
 			}
 		}
@@ -51,7 +51,7 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 
 		if(ret){
 			if(ret !=-EAGAIN){
-				printf("error");
+				printf("error xwii_iface_dispatch");
 				break;
 			}
 		}
@@ -200,16 +200,4 @@ void post_calibration(){
 			s = s+matrix_A[i][j]*matrix_res[j];
 		matrix_res[i] = (matrix_x[i] - s) / matrix_A[i][i];
 	}
-
-	/*printf("AAAA\n");
-	for(i=0;i<8;i++){
-		for(j=0;j<8;j++){
-			printf("%.1f ", matrix_A[i][j]);
-		}
-		printf("\n" );
-	}fflush(stdout);
-	printf("XXXX\n");
-	for(i=0;i<8;i++) printf("%.1f ",matrix_x[i] ); printf("\n");fflush(stdout);
-	printf("RRRR\n");*/
-
 }

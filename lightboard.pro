@@ -3,7 +3,7 @@
 ######################################################################
 
 TEMPLATE = app
-LIBS += -ludev -lX11 -lXtst -lpthread
+LIBS += -ludev -lX11 -lXtst -lpthread -lbluetooth
 CONFIG += warn_off
 RESOURCES = systray.qrc
 
