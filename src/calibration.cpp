@@ -20,12 +20,13 @@ extern int point, change;
 extern Display *dpy;
 extern Screen *s;
 extern double matrix_A[9][9], matrix_x[9], matrix_res[20];
-extern int reset_point, freeze, stop_ir, calibrated;
+extern int reset_point, freeze, stop_ir, calibrated, click_enabled;
 
 static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
-	int ret=0, fds_num;
+	int ret=0, fds_num, valid_source;
 	struct pollfd fds[2];
 	int default_wait_time = 400;
+	static int go = 1;
 
 	memset(fds, 0, sizeof(fds));
 	fds[0].fd = 0;
@@ -68,7 +69,9 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 						pthread_kill(main_tid,SIGUSR1); //send signal to the main thread
 					else{
 						float new_x,new_y;
+						valid_source = 0;
 						if(xwii_event_ir_is_valid(&event->v.abs[0])){
+							valid_source = 1;
 							new_x = ((matrix_res[0]*event->v.abs[0].x) + (matrix_res[1]*event->v.abs[0].y) + matrix_res[2]) /
 									((matrix_res[6]*event->v.abs[0].x) + (matrix_res[7]*event->v.abs[0].y) + 1);
 							new_y = ((matrix_res[3]*event->v.abs[0].x) + (matrix_res[4]*event->v.abs[0].y) + matrix_res[5]) /
@@ -76,6 +79,19 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 
 							XTestFakeMotionEvent (dpy, 0, new_x, new_y, CurrentTime);
 							XSync(dpy, 0);
+
+							if(go && click_enabled){
+								XTestFakeButtonEvent (dpy, 1, True,  CurrentTime);
+								XSync(dpy, 1);
+								go=0;
+							}
+						}
+						if (!valid_source) {
+							if(!go){
+								XTestFakeButtonEvent (dpy, 1, False,  CurrentTime);
+								XSync(dpy, 1);
+								go=1;
+							}
 						}
 					}
 					break;

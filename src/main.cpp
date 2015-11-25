@@ -32,7 +32,7 @@ Screen *s;
 pthread_t main_tid;
 int point, change; //interi
 double matrix_A[9][9], matrix_x[9], matrix_res[20];
-int reset_point, freeze, stop_ir, calibrated; //TODO booleani
+int reset_point, freeze, stop_ir, calibrated, click_enabled; //TODO booleani
 CalibrationWindow *window;
 ConfigurationWindow *config;
 char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
@@ -186,6 +186,7 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
     batteryValue->setValue(get_battery());
     checkbox = new QCheckBox("Move only", this);
     checkbox->setChecked(true);
+	connect(checkbox, SIGNAL(clicked(bool)), this, SLOT(changeMode()));
     sensibilityLabel = new QLabel("Sensibility:");
     slider = new QSlider(Qt::Horizontal,0);
     gridLayout->setVerticalSpacing(10);
@@ -220,6 +221,10 @@ void ConfigurationWindow::startCalibration(){
 	::start_calibration();
 	trayIcon->~QSystemTrayIcon();
 	close();
+}
+
+void ConfigurationWindow::changeMode(){
+	::click_enabled = 1-::click_enabled;
 }
 
 /***/
@@ -301,7 +306,7 @@ void inquiry(char *addr){
 }
 
 int main(int argc, char *argv[]) {
-    int ret = 0;
+    int ret = click_enabled = 0;
  	char *path = NULL;
 	int status;
 	char* command[5];

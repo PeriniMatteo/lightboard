@@ -79,6 +79,7 @@ class ConfigurationWindow : public QWidget {
 		void openConfiguration();
 		void information();
 		void startCalibration();
+		void changeMode();
 		void exitApp();
 };
 
