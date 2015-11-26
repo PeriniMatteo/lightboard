@@ -6,6 +6,9 @@
 #include <QString>
 #include <QMenu>
 #include <QtGui>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QGraphicsPolygonItem>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -73,7 +76,7 @@ void start_calibration(){
 	window->point_array[2].default_y = window->point_array[3].default_y = bottom_distance;
 	reset();
 	window->resize(400, 400);
-	window->setWindowTitle("CalibrationWindow");
+	window->setWindowTitle(QObject::tr("CalibrationWindow"));
 	window->showFullScreen();
 }
 
@@ -90,7 +93,7 @@ void CalibrationWindow::keyPressEvent(QKeyEvent *event) {
 		close();
         config = new ConfigurationWindow();
         config->resize(350, 400);
-        config->setWindowTitle("ConfigurationWindow");
+        config->setWindowTitle(tr("ConfigurationWindow"));
 	}
 	if(event->key() == Qt::Key_Plus){
 		change_distance_from_border(SUM);
@@ -119,11 +122,11 @@ void CalibrationWindow::post_sleep_calibration(){
 	}
 	stop_ir = FALSE;
 	if(point==4){
-		close();
 		post_calibration();
+		close();
         config = new ConfigurationWindow();
         config->resize(350, 400);
-        config->setWindowTitle("ConfigurationWindow");
+        config->setWindowTitle(tr("ConfigurationWindow"));
 	}
 }
 
@@ -135,7 +138,7 @@ void ConfigurationWindow::createActions(){
     informationAction = new QAction(tr("Information"), this);
     connect(informationAction, SIGNAL(triggered()), this, SLOT(information()));
 
-    quitAction = new QAction(tr("&Quit"), this);
+    quitAction = new QAction(tr("Quit"), this);
     connect(quitAction, SIGNAL(triggered()), this, SLOT(exitApp()));
 }
 void ConfigurationWindow::exitApp(){
@@ -169,25 +172,29 @@ void ConfigurationWindow::setIcon(){
 }
 ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
     gridLayout = new QGridLayout();
-    btAddressLabel = new QLabel("Connected to:");
+    btAddressLabel = new QLabel(tr("Connected to:"));
     btAddressValue = new QLabel(btaddress);
-    calibrateButton = new QPushButton("Calibrate",this);
+    calibrateButton = new QPushButton(tr("Calibrate"),this);
 	connect(calibrateButton, SIGNAL(clicked()), this, SLOT(startCalibration()));
-    coverageLabel = new QLabel("Coverage:");
+    coverageLabel = new QLabel(tr("Coverage:"));
     coverageValue = new QLabel();
 	coverageValue->setText(get_coverage());
     scene = new QGraphicsScene(this);
     view = new QGraphicsView(this);
-    view->setScene(scene);
-    batteryLabel = new QLabel("Battery:");
+	/*Dichiarare QPolygonF dopo aver chiuso CalibrationWindow fa crashare il programma*/
+	/*QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem( QPolygonF( QVector<QPointF>() << QPointF( 10, 10 ) << QPointF( 0, 90 ) << QPointF( 40, 70 ) << QPointF( 80, 110 ) << QPointF( 70, 20 ) ), 0, scene );
+  	polygonItem->setPen( QPen(Qt::darkGreen) );
+  	polygonItem->setBrush( Qt::yellow );*/
+	view->setScene(scene);
+	batteryLabel = new QLabel(tr("Battery:"));
     batteryValue = new QProgressBar();
     batteryValue->setMinimum(0);
     batteryValue->setMaximum(100);
     batteryValue->setValue(get_battery());
-    checkbox = new QCheckBox("Move only", this);
+    checkbox = new QCheckBox(tr("Move only"), this);
     checkbox->setChecked(true);
 	connect(checkbox, SIGNAL(clicked(bool)), this, SLOT(changeMode()));
-    sensibilityLabel = new QLabel("Sensibility:");
+    sensibilityLabel = new QLabel(tr("Sensibility:"));
     slider = new QSlider(Qt::Horizontal,0);
     gridLayout->setVerticalSpacing(10);
     gridLayout->setRowStretch(3, 10);
@@ -337,8 +344,8 @@ int main(int argc, char *argv[]) {
 		pthread_attr_init(&attr);
 		main_tid = pthread_self();
 		pthread_create(&tid,&attr, calibration_thread,(void*)&event);
-		if (signal(SIGUSR1, sig_handler) == SIG_ERR) printf("\ncan't catch SIGUSR1\n");
-		if (signal(SIGUSR2, sig_handler) == SIG_ERR) printf("\ncan't catch SIGUSR2\n");
+		if (signal(SIGUSR1, sig_handler) == SIG_ERR) printf("can't catch SIGUSR1\n");
+		if (signal(SIGUSR2, sig_handler) == SIG_ERR) printf("can't catch SIGUSR2\n");
 
         dpy = XOpenDisplay(NULL);
 		s = DefaultScreenOfDisplay(dpy);
