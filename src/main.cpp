@@ -20,6 +20,7 @@
 #include <sys/wait.h>
 #include <cmath>
 #include <X11/Xlib.h>
+#include <QTranslator>
 
 #include <sys/socket.h>
 #include <bluetooth/bluetooth.h>
@@ -362,10 +363,12 @@ int main(int argc, char *argv[]) {
 		s = DefaultScreenOfDisplay(dpy);
         Q_INIT_RESOURCE(systray);
 		QApplication app(argc, argv);
+
+		QTranslator translator;
+		translator.load("lightboard_en");
+		app.installTranslator(&translator);
+
         if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-            /*QMessageBox::critical(0, QObject::tr("Systray"),
-                               QObject::tr("I couldn't detect any system tray "
-                                           "on this system."));*/
             return 1;
         }
         QApplication::setQuitOnLastWindowClosed(false);

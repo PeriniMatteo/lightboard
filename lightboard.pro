@@ -12,3 +12,6 @@ SOURCES += src/*.cpp lib/*
 HEADERS += include/main.h include/QProgressIndicator.h
 
 QT += gui
+TARGET = lightboard
+TRANSLATIONS = $${TARGET}_en.ts $${TARGET}_it.ts
+CODECFORSRC = UTF-8
