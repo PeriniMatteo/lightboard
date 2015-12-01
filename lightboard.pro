@@ -11,4 +11,4 @@ RESOURCES = systray.qrc
 SOURCES += src/*.cpp lib/*
 HEADERS += include/main.h include/QProgressIndicator.h
 
-#ICON =
+QT += gui

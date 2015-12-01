@@ -21,6 +21,7 @@ extern Display *dpy;
 extern Screen *s;
 extern double matrix_A[9][9], matrix_x[9], matrix_res[20];
 extern int reset_point, freeze, stop_ir, calibrated, click_enabled;
+extern coord wii_coord[4];
 
 static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	int ret=0, fds_num, valid_source;
@@ -175,6 +176,8 @@ void post_calibration(){
 
 	//matrices creation
 	for(i=0;i<8;i=i+2){
+		wii_coord[i/2].x = window->point_array[i/2].ir_x;
+		wii_coord[i/2].y = window->point_array[i/2].ir_y;
 		matrix_A[i][0] = window->point_array[i/2].ir_x;
 		matrix_A[i][1] = window->point_array[i/2].ir_y;
 		matrix_A[i][2] = 1;

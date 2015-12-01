@@ -1,14 +1,16 @@
 #include <QApplication>
+#include <QtGui>
 #include <QWidget>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QGraphicsPolygonItem>
+#include <QPolygonF>
+#include <QVector>
 #include <QLabel>
 #include <QKeyEvent>
 #include <QTimer>
 #include <QString>
 #include <QMenu>
-#include <QtGui>
-#include <QGraphicsScene>
-#include <QGraphicsView>
-#include <QGraphicsPolygonItem>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -33,9 +35,11 @@ struct xwii_event event;
 Display *dpy;
 Screen *s;
 pthread_t main_tid;
-int point, change; //interi
+int point, change;
+coord wii_coord[4];
 double matrix_A[9][9], matrix_x[9], matrix_res[20];
 int reset_point, freeze, stop_ir, calibrated, click_enabled; //TODO booleani
+
 CalibrationWindow *window;
 ConfigurationWindow *config;
 char *commands[4] = {FIRST_COMMAND, SECOND_COMMAND, THIRD_COMMAND, FOURTH_COMMAND};
@@ -50,11 +54,11 @@ static uint8_t get_battery(void)
 
 static char *get_coverage(void){
 	if(calibrated){
-		float distance_01 = sqrt( pow((window->point_array[1].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[1].ir_y - window->point_array[0].ir_y),2) );
-		float distance_03 = sqrt( pow((window->point_array[3].ir_x - window->point_array[0].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[0].ir_y),2) );
+		float distance_01 = sqrt( pow((wii_coord[1].x - wii_coord[0].x),2) + pow((wii_coord[1].y - wii_coord[0].y),2) );
+		float distance_03 = sqrt( pow((wii_coord[3].x - wii_coord[0].x),2) + pow((wii_coord[3].y - wii_coord[0].y),2) );
 		float area_013 = (distance_01*distance_03)/2;
-		float distance_23 = sqrt( pow((window->point_array[3].ir_x - window->point_array[2].ir_x),2) + pow((window->point_array[3].ir_y - window->point_array[2].ir_y),2) );
-		float distance_12 = sqrt( pow((window->point_array[2].ir_x - window->point_array[1].ir_x),2) + pow((window->point_array[2].ir_y - window->point_array[1].ir_y),2) );
+		float distance_23 = sqrt( pow((wii_coord[3].x - wii_coord[2].x),2) + pow((wii_coord[3].y - wii_coord[2].y),2) );
+		float distance_12 = sqrt( pow((wii_coord[2].x - wii_coord[1].x),2) + pow((wii_coord[2].y - wii_coord[1].y),2) );
 		float area_123 = (distance_23*distance_12)/2;
 		float area = area_013+area_123;
 		char coverage[4];
@@ -130,7 +134,6 @@ void CalibrationWindow::post_sleep_calibration(){
 	}
 }
 
-/****/
 void ConfigurationWindow::createActions(){
     openConfigurationAction = new QAction(tr("Configuration"), this);
     connect(openConfigurationAction, SIGNAL(triggered()), this, SLOT(openConfiguration()));
@@ -181,10 +184,6 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
 	coverageValue->setText(get_coverage());
     scene = new QGraphicsScene(this);
     view = new QGraphicsView(this);
-	/*Dichiarare QPolygonF dopo aver chiuso CalibrationWindow fa crashare il programma*/
-	/*QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem( QPolygonF( QVector<QPointF>() << QPointF( 10, 10 ) << QPointF( 0, 90 ) << QPointF( 40, 70 ) << QPointF( 80, 110 ) << QPointF( 70, 20 ) ), 0, scene );
-  	polygonItem->setPen( QPen(Qt::darkGreen) );
-  	polygonItem->setBrush( Qt::yellow );*/
 	view->setScene(scene);
 	batteryLabel = new QLabel(tr("Battery:"));
     batteryValue = new QProgressBar();
@@ -212,7 +211,6 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
     gridLayout->addWidget(slider,8,1,1,1);
 
     setLayout(gridLayout);
-
     createActions(); /*create callback function for menu fields*/
     createTrayIcon(); /*create tray icon*/
     setIcon();
@@ -222,6 +220,7 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
 void ConfigurationWindow::information(){}
 void ConfigurationWindow::openConfiguration(){
     show();
+	setPolygon();
 }
 
 void ConfigurationWindow::startCalibration(){
@@ -234,7 +233,19 @@ void ConfigurationWindow::changeMode(){
 	::click_enabled = 1-::click_enabled;
 }
 
-/***/
+void ConfigurationWindow::setPolygon(){
+	int i;
+	polygon = new QPolygonF(4);
+	for(i=0;i<4;i++){
+		int provax = (wii_coord[i].x*view->width())/1024;
+		int provay = (wii_coord[i].y*view->height())/768;
+		polygon->append(QPointF(provax,provay));
+	}
+	QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(*polygon, 0, scene);
+  	polygonItem->setPen( QPen(Qt::darkGreen) );
+  	polygonItem->setBrush( Qt::yellow );
+	config->resize(351, 400); //TODO hardcoded
+}
 
 static char *get_dev(int num){
 	struct xwii_monitor *mon;

@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QtGui>
 #include <QWidget>
+#include <QPolygonF>
 #include <QLabel>
 #include <QSystemTrayIcon>
 #include <QPushButton>
@@ -25,6 +26,10 @@
 #define SECOND_COMMAND "Now release your IR pen and point it on the number 2 and hold for 1 second"
 #define THIRD_COMMAND "Now repeat for number 3"
 #define FOURTH_COMMAND "Finally number 4"
+typedef struct coord {
+	int x;
+	int y;
+} coord;
 
 typedef struct point_s {
 	QLabel *label;
@@ -60,6 +65,7 @@ class ConfigurationWindow : public QWidget {
 		QLabel *coverageValue;
 		QGraphicsScene *scene;
 		QGraphicsView *view;
+		QPolygonF *polygon;
 		QLabel *batteryLabel;
 		QProgressBar *batteryValue;
 		QCheckBox *checkbox;
@@ -75,6 +81,7 @@ class ConfigurationWindow : public QWidget {
 		void createActions();
 	    void createTrayIcon();
 		void setIcon();
+		void setPolygon();
 	private slots:
 		void openConfiguration();
 		void information();
