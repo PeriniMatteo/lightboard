@@ -11,7 +11,7 @@ RESOURCES = systray.qrc
 SOURCES += src/*.cpp lib/*
 HEADERS += include/main.h include/QProgressIndicator.h
 
-QT += gui
+QT += gui widgets
 TARGET = lightboard
 TRANSLATIONS = resources/$${TARGET}_en.ts resources/$${TARGET}_it.ts
 CODECFORSRC = UTF-8
