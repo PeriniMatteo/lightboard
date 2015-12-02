@@ -13,5 +13,5 @@ HEADERS += include/main.h include/QProgressIndicator.h
 
 QT += gui
 TARGET = lightboard
-TRANSLATIONS = $${TARGET}_en.ts $${TARGET}_it.ts
+TRANSLATIONS = resources/$${TARGET}_en.ts resources/$${TARGET}_it.ts
 CODECFORSRC = UTF-8
