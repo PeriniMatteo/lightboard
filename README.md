@@ -18,8 +18,16 @@ Lightboard migrates from cwiid to xwiimote for a better resources management, si
 Old project: [here](https://github.com/GiovanniIncammicia/old_lightboard)
 
 ### HOW TO USE
-At the moment the configuration is a little tricky, it needs some packages to be installed manually (it *needs qt4.8*, we are working to extend it to other versions).  
-(TODO: list all the packages)
+At the moment the configuration is a little tricky, it needs some packages to be installed manually (it *needs qt4.8 or qt5.5 on Ubuntu <= 15.04*, we are working to extend it to other versions).  
+Must have:
+* qt4-default
+* libxtst-dev
+* libbluetooth-dev
+* libudev-dev
+* libxwiimote-dev
+* bluez-tools
+* bluez-utils
+
 
 1. open a terminal and move to Lightboard directory, launch "make"  
 2. execute Lightboard with "sudo ./lightboard"

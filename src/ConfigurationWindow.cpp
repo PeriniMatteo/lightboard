@@ -8,9 +8,11 @@
 #include <QGridLayout>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QGraphicsPolygonItem>
 #include <QProgressBar>
 #include <QCheckBox>
 #include <QSlider>
+#include <QMenu>
 #include <X11/Xlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -154,7 +156,8 @@ void ConfigurationWindow::setPolygon(){
 		int provay = (wii_coord[i].y*view->height())/768;
 		polygon->append(QPointF(provax,provay));
 	}
-	QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(*polygon, 0, scene);
+	QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(*polygon);
+	scene->addItem(polygonItem);
   	polygonItem->setPen( QPen(Qt::darkGreen) );
   	polygonItem->setBrush( Qt::yellow );
 	config->resize(351, 400); //TODO hardcoded

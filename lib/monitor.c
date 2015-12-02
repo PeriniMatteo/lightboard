@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "xwiimote.h"
+#include "../include/xwiimote.h"
 
 struct xwii_monitor {
 	size_t ref;

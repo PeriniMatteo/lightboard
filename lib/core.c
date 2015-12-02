@@ -16,7 +16,7 @@
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include "xwiimote.h"
+#include "../include/xwiimote.h"
 
 /* interfaces */
 enum xwii_if_base_idx {
