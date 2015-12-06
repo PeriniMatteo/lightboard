@@ -28,7 +28,6 @@ Must have:
 * bluez-tools
 * bluez-utils
 
-
 1. open a terminal and move to Lightboard directory, launch "make"  
 2. execute Lightboard with "sudo ./lightboard"
 
