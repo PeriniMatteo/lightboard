@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
  	char *path = NULL;
 	int status;
 	char* command[5];
-	command[0]="bt-input";
+	command[0]="hidd";
 	command[1]="-c";
 	command[2]=(char *) malloc(sizeof(char)*19);
 	command[3]=NULL;
