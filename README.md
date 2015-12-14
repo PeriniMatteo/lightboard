@@ -25,8 +25,6 @@ Dependencies:
 * libbluetooth-dev
 * libudev-dev
 * libxwiimote-dev
-* bluez-tools
-* bluez-utils
 * bluez-compat
 
 1. open a terminal and move to Lightboard directory, launch "qmake && make"  
