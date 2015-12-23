@@ -21,6 +21,7 @@
 extern struct xwii_iface *iface;
 extern char btaddress[19];
 extern int click_enabled, calibrated; //bool
+extern int wait_time;
 extern coord wii_coord[4];
 extern ConfigurationWindow *config;
 
@@ -62,14 +63,14 @@ void ConfigurationWindow::createActions(){
 void ConfigurationWindow::exitApp(){
     qApp->quit();
     QObject::deleteLater();
-	xwii_iface_unref(iface);
-	char* command[5];
-	command[0]="bt-input";
-	command[1]="-d";
-	command[2]=btaddress;
-	command[3]=NULL;
-	if(fork()==0) execvp(command[0],command);
-	else wait((void *)NULL);
+		xwii_iface_unref(iface);
+		char* command[5];
+		command[0]="hidd";
+		command[1]="--kill";
+		command[2]=btaddress;
+		command[3]=NULL;
+		if(fork()==0) execvp(command[0],command);
+		else wait((void *)NULL);
     exit(1);
 }
 void ConfigurationWindow::createTrayIcon()
@@ -93,23 +94,25 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent) : QWidget(parent) {
     btAddressLabel = new QLabel(tr("Connected to:"));
     btAddressValue = new QLabel(btaddress);
     calibrateButton = new QPushButton(tr("Calibrate"),this);
-	connect(calibrateButton, SIGNAL(clicked()), this, SLOT(startCalibration()));
+		connect(calibrateButton, SIGNAL(clicked()), this, SLOT(startCalibration()));
     coverageLabel = new QLabel(tr("Coverage:"));
     coverageValue = new QLabel();
-	coverageValue->setText(get_coverage());
+		coverageValue->setText(get_coverage());
     scene = new QGraphicsScene(this);
     view = new QGraphicsView(this);
-	view->setScene(scene);
-	batteryLabel = new QLabel(tr("Battery:"));
+		view->setScene(scene);
+		batteryLabel = new QLabel(tr("Battery:"));
     batteryValue = new QProgressBar();
     batteryValue->setMinimum(0);
     batteryValue->setMaximum(100);
     batteryValue->setValue(get_battery());
     checkbox = new QCheckBox(tr("Move only"), this);
     checkbox->setChecked(true);
-	connect(checkbox, SIGNAL(clicked(bool)), this, SLOT(changeMode()));
+		connect(checkbox, SIGNAL(clicked(bool)), this, SLOT(changeMode()));
     sensibilityLabel = new QLabel(tr("Sensibility:"));
     slider = new QSlider(Qt::Horizontal,0);
+		connect(slider, SIGNAL(valueChanged(int)), this, SLOT(changeSensibility()));
+		slider->setValue(50);
     gridLayout->setVerticalSpacing(10);
     gridLayout->setRowStretch(3, 10);
 
@@ -148,17 +151,21 @@ void ConfigurationWindow::changeMode(){
 	::click_enabled = 1-::click_enabled;
 }
 
+void ConfigurationWindow::changeSensibility(){
+	::wait_time = 200 + slider->value()*6; //TODO hardcoded
+}
+
 void ConfigurationWindow::setPolygon(){
 	int i;
 	polygon = new QPolygonF(4);
 	for(i=0;i<4;i++){
-		int provax = (wii_coord[i].x*view->width())/1024;
-		int provay = (wii_coord[i].y*view->height())/768;
-		polygon->append(QPointF(provax,provay));
+		int polygon_x = (wii_coord[i].x*view->width())/1024;
+		int polygon_y = (wii_coord[i].y*view->height())/768;
+		*polygon << QPointF(polygon_x,polygon_y);
 	}
 	QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(*polygon);
 	scene->addItem(polygonItem);
-  	polygonItem->setPen( QPen(Qt::darkGreen) );
-  	polygonItem->setBrush( Qt::yellow );
+	polygonItem->setPen( QPen(Qt::darkGreen) );
+	polygonItem->setBrush( Qt::yellow );
 	config->resize(351, 400); //TODO hardcoded
 }

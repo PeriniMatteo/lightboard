@@ -20,13 +20,12 @@ extern int point, change;
 extern Display *dpy;
 extern Screen *s;
 extern double matrix_A[9][9], matrix_x[9], matrix_res[20];
-extern int reset_point, freeze, stop_ir, calibrated, click_enabled;
+extern int reset_point, freeze, stop_ir, calibrated, click_enabled, wait_time;
 extern coord wii_coord[4];
 
 static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	int ret=0, fds_num, valid_source;
 	struct pollfd fds[2];
-	int default_wait_time = 400;
 	static int go = 1;
 
 	memset(fds, 0, sizeof(fds));
@@ -39,7 +38,7 @@ static int run_iface(struct xwii_iface *iface, struct xwii_event *event){
 	if(ret) printf("error xwii_iface_watch");
 
 	while(true){
-		ret = poll(fds, fds_num, default_wait_time);
+		ret = poll(fds, fds_num, wait_time);
 		if(ret<0){
 			if(errno != EINTR){
 				ret = -errno;

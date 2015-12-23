@@ -33,7 +33,7 @@ MOVE          = mv -f
 TAR           = tar -cf
 COMPRESS      = gzip -9f
 DISTNAME      = lightboard1.0.0
-DISTDIR = /home/inca/Downloads/lightboard/.tmp/lightboard1.0.0
+DISTDIR = /home/inca/Documents/lightboard/.tmp/lightboard1.0.0
 LINK          = g++
 LFLAGS        = -Wl,-O1 -Wl,-rpath,/home/inca/Qt5.5.1/5.5/gcc_64 -Wl,-rpath,/home/inca/Qt5.5.1/5.5/gcc_64/lib
 LIBS          = $(SUBLIBS) -ludev -lX11 -lXtst -lbluetooth -L/home/inca/Qt5.5.1/5.5/gcc_64/lib -lQt5Widgets -L/usr/lib64 -lQt5Gui -lQt5Core -lGL -lpthread 
@@ -903,7 +903,7 @@ moc_main.cpp: ../../Qt5.5.1/5.5/gcc_64/include/QtWidgets/QApplication \
 		include/QProgressIndicator.h \
 		../../Qt5.5.1/5.5/gcc_64/include/QtGui/QColor \
 		include/main.h
-	/home/inca/Qt5.5.1/5.5/gcc_64/bin/moc $(DEFINES) -I/home/inca/Qt5.5.1/5.5/gcc_64/mkspecs/linux-g++ -I/home/inca/Downloads/lightboard -I/home/inca/Qt5.5.1/5.5/gcc_64/include -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtWidgets -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtGui -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtCore include/main.h -o moc_main.cpp
+	/home/inca/Qt5.5.1/5.5/gcc_64/bin/moc $(DEFINES) -I/home/inca/Qt5.5.1/5.5/gcc_64/mkspecs/linux-g++ -I/home/inca/Documents/lightboard -I/home/inca/Qt5.5.1/5.5/gcc_64/include -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtWidgets -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtGui -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtCore include/main.h -o moc_main.cpp
 
 moc_QProgressIndicator.cpp: ../../Qt5.5.1/5.5/gcc_64/include/QtWidgets/QWidget \
 		../../Qt5.5.1/5.5/gcc_64/include/QtWidgets/qwidget.h \
@@ -1009,7 +1009,7 @@ moc_QProgressIndicator.cpp: ../../Qt5.5.1/5.5/gcc_64/include/QtWidgets/QWidget \
 		../../Qt5.5.1/5.5/gcc_64/include/QtGui/qtouchdevice.h \
 		../../Qt5.5.1/5.5/gcc_64/include/QtGui/QColor \
 		include/QProgressIndicator.h
-	/home/inca/Qt5.5.1/5.5/gcc_64/bin/moc $(DEFINES) -I/home/inca/Qt5.5.1/5.5/gcc_64/mkspecs/linux-g++ -I/home/inca/Downloads/lightboard -I/home/inca/Qt5.5.1/5.5/gcc_64/include -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtWidgets -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtGui -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtCore include/QProgressIndicator.h -o moc_QProgressIndicator.cpp
+	/home/inca/Qt5.5.1/5.5/gcc_64/bin/moc $(DEFINES) -I/home/inca/Qt5.5.1/5.5/gcc_64/mkspecs/linux-g++ -I/home/inca/Documents/lightboard -I/home/inca/Qt5.5.1/5.5/gcc_64/include -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtWidgets -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtGui -I/home/inca/Qt5.5.1/5.5/gcc_64/include/QtCore include/QProgressIndicator.h -o moc_QProgressIndicator.cpp
 
 compiler_moc_source_make_all:
 compiler_moc_source_clean:
